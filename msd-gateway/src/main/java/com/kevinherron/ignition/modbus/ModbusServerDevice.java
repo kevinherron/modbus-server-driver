@@ -279,8 +279,16 @@ public class ModbusServerDevice implements Device {
     Object o = switch (attributeId) {
       case NodeId -> nodeId;
       case NodeClass -> NodeClass.Variable;
-      case BrowseName -> deviceContext.qualifiedName(nodeId.getIdentifier().toString());
-      case DisplayName, Description -> LocalizedText.english(nodeId.getIdentifier().toString());
+      case BrowseName -> {
+        String id = nodeId.getIdentifier().toString();
+        String addr = id.substring(id.indexOf("[%s]".formatted(getName())));
+        yield deviceContext.qualifiedName(addr);
+      }
+      case DisplayName, Description -> {
+        String id = nodeId.getIdentifier().toString();
+        String addr = id.substring(id.indexOf("[%s]".formatted(getName())));
+        yield LocalizedText.english(addr);
+      }
       case WriteMask, UserWriteMask -> UInteger.valueOf(0);
       case DataType -> address.getDataType().getBuiltinDataType().getNodeId();
       case ValueRank -> {
