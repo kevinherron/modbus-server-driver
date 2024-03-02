@@ -14,7 +14,7 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
 
   @Override
   public void setup(@NotNull GatewayContext context) {
-    BundleUtil.get().addBundle(ModbusServerDevice.class);
+    BundleUtil.get().addBundle("ModbusServer", ModbusServerDevice.class, "ModbusServer");
 
     super.setup(context);
   }
@@ -33,7 +33,7 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
 
   @Override
   protected @NotNull List<DeviceType> getDeviceTypes() {
-    return List.of(new ModbusServerDeviceType());
+    return List.of(ModbusServerDeviceType.INSTANCE);
   }
 
 }

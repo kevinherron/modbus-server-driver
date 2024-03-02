@@ -12,11 +12,13 @@ import org.jetbrains.annotations.Nullable;
 
 public class ModbusServerDeviceType extends DeviceType {
 
-  public ModbusServerDeviceType() {
+  public static final ModbusServerDeviceType INSTANCE = new ModbusServerDeviceType();
+
+  private ModbusServerDeviceType() {
     super(
         "com.kevinherron.modbus-server-driver",
-        "ModbusServerDeviceType.Name",
-        "ModbusServerDeviceType.Desc"
+        "ModbusServer.ModbusServerDeviceType.Name",
+        "ModbusServer.ModbusServerDeviceType.Desc"
     );
   }
 
@@ -31,7 +33,7 @@ public class ModbusServerDeviceType extends DeviceType {
         deviceSettingsRecord
     );
 
-    return new ModbusServerDevice(deviceSettingsRecord, modbusServerSettings);
+    return new ModbusServerDevice(deviceContext, deviceSettingsRecord, modbusServerSettings);
   }
 
   @Override

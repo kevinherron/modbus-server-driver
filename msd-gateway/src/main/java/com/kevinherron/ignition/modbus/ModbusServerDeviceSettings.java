@@ -21,6 +21,11 @@ public class ModbusServerDeviceSettings extends PersistentRecord {
   public static final IntField PORT =
       new IntField(META, "Port", SFieldFlags.SMANDATORY);
 
+  static {
+    DEVICE_SETTINGS.getFormMeta().setVisible(false);
+    DEVICE_SETTINGS_ID.getFormMeta().setVisible(false);
+  }
+
   @Override
   public RecordMeta<?> getMeta() {
     return META;

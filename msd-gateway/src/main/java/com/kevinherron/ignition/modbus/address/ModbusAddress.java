@@ -5,19 +5,19 @@ import java.util.Set;
 public sealed abstract class ModbusAddress {
 
   private final ModbusArea area;
-  private final int address;
+  private final int offset;
   private final ModbusDataType dataType;
   private final Set<ModbusDataType.Modifier> dataTypeModifiers;
 
   protected ModbusAddress(
       ModbusArea area,
-      int address,
+      int offset,
       ModbusDataType dataType,
       Set<ModbusDataType.Modifier> dataTypeModifiers
   ) {
 
     this.area = area;
-    this.address = address;
+    this.offset = offset;
     this.dataType = dataType;
     this.dataTypeModifiers = Set.copyOf(dataTypeModifiers);
   }
@@ -26,8 +26,8 @@ public sealed abstract class ModbusAddress {
     return area;
   }
 
-  public int getAddress() {
-    return address;
+  public int getOffset() {
+    return offset;
   }
 
   public ModbusDataType getDataType() {
@@ -64,8 +64,6 @@ public sealed abstract class ModbusAddress {
 
   public static final class ScalarAddress extends ModbusAddress {
 
-    private final int bitIndex;
-
     public ScalarAddress(
         ModbusArea area,
         int address,
@@ -73,24 +71,7 @@ public sealed abstract class ModbusAddress {
         Set<ModbusDataType.Modifier> dataTypeModifiers
     ) {
 
-      this(area, address, dataType, dataTypeModifiers, -1);
-    }
-
-    public ScalarAddress(
-        ModbusArea area,
-        int address,
-        ModbusDataType dataType,
-        Set<ModbusDataType.Modifier> dataTypeModifiers,
-        int bitIndex
-    ) {
-
       super(area, address, dataType, dataTypeModifiers);
-
-      this.bitIndex = bitIndex;
-    }
-
-    public int getBitIndex() {
-      return bitIndex;
     }
 
   }

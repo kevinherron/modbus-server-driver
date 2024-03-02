@@ -71,28 +71,28 @@ class ModbusAddressParserTest {
       {
         var address = ModbusAddressParser.parse("C%d".formatted(offset));
         assertEquals(ModbusArea.COILS, address.getArea());
-        assertEquals(offset, address.getAddress());
+        assertEquals(offset, address.getOffset());
         assertInstanceOf(ModbusDataType.Bool.class, address.getDataType());
       }
 
       {
         var address = ModbusAddressParser.parse("DI%d".formatted(offset));
         assertEquals(ModbusArea.DISCRETE_INPUTS, address.getArea());
-        assertEquals(offset, address.getAddress());
+        assertEquals(offset, address.getOffset());
         assertInstanceOf(ModbusDataType.Bool.class, address.getDataType());
       }
 
       {
         var address = ModbusAddressParser.parse("HR%d".formatted(offset));
         assertEquals(ModbusArea.HOLDING_REGISTERS, address.getArea());
-        assertEquals(offset, address.getAddress());
+        assertEquals(offset, address.getOffset());
         assertInstanceOf(ModbusDataType.Int16.class, address.getDataType());
       }
 
       {
         var address = ModbusAddressParser.parse("IR%d".formatted(offset));
         assertEquals(ModbusArea.INPUT_REGISTERS, address.getArea());
-        assertEquals(offset, address.getAddress());
+        assertEquals(offset, address.getOffset());
         assertInstanceOf(ModbusDataType.Int16.class, address.getDataType());
       }
     }
