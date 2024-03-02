@@ -1,0 +1,45 @@
+name: Build and Sign Ignition Module
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Decode Keystore
+        id: decode_keystore
+        uses: timheuer/base64-to-file@v1.2
+        with:
+          fileName: 'keystore.pfx'
+          encodedString: ${{ secrets.CODESIGN_PFX }}
+
+      - name: Decode Certificates
+        id: decode_certificates
+        uses: timheuer/base64-to-file@v1.2
+        with:
+          fileName: 'certificates.p7b'
+          encodedString: ${{ secrets.CODESIGN_P7B }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build Module
+        run: mvn -B package
+
+      - name: Sign Module
+        run: |
+          curl -L -o module-signer.jar 'https://github.com/kevinherron/module-signer/releases/download/v1.0.0-RC1/module-signer-1.0.0-RC1.jar'
+          java -jar module-signer.jar -keystore=${{ steps.decode_keystore.outputs.filePath }} -keystore-pwd=${{ secrets.CODESIGN_PASSWORD }} -alias=codesign -alias-pwd=${{ secrets.CODESIGN_PASSWORD }} -chain=${{ steps.decode_certificates.outputs.filePath }} -module-in=msd-build/target/Modbus-Server-Driver-Module-unsigned.modl -module-out=Modbus-Server-Driver-Module-signed.modl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Modbus-Server-Driver-Module-signed.modl
+          path: Modbus-Server-Driver-Module-signed.modl
