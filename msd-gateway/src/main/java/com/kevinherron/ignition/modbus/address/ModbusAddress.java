@@ -7,13 +7,13 @@ public sealed abstract class ModbusAddress {
   private final ModbusArea area;
   private final int offset;
   private final ModbusDataType dataType;
-  private final Set<ModbusDataType.Modifier> dataTypeModifiers;
+  private final Set<DataTypeModifier> dataTypeModifiers;
 
   protected ModbusAddress(
       ModbusArea area,
       int offset,
       ModbusDataType dataType,
-      Set<ModbusDataType.Modifier> dataTypeModifiers
+      Set<DataTypeModifier> dataTypeModifiers
   ) {
 
     this.area = area;
@@ -34,7 +34,7 @@ public sealed abstract class ModbusAddress {
     return dataType;
   }
 
-  public Set<ModbusDataType.Modifier> getDataTypeModifiers() {
+  public Set<DataTypeModifier> getDataTypeModifiers() {
     return dataTypeModifiers;
   }
 
@@ -47,7 +47,7 @@ public sealed abstract class ModbusAddress {
         ModbusArea area,
         int address,
         ModbusDataType dataType,
-        Set<ModbusDataType.Modifier> dataTypeModifiers,
+        Set<DataTypeModifier> dataTypeModifiers,
         int[] dimensions
     ) {
 
@@ -68,7 +68,7 @@ public sealed abstract class ModbusAddress {
         ModbusArea area,
         int address,
         ModbusDataType dataType,
-        Set<ModbusDataType.Modifier> dataTypeModifiers
+        Set<DataTypeModifier> dataTypeModifiers
     ) {
 
       super(area, address, dataType, dataTypeModifiers);

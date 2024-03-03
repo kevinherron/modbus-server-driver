@@ -13,10 +13,14 @@ import com.digitalpetri.modbus.server.NettyServerTransportConfig;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.ByteOrder;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.ByteOrderModifier;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrder;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrderModifier;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
-import com.kevinherron.ignition.modbus.address.ModbusDataType.Modifier;
 import com.kevinherron.ignition.modbus.util.ByteArrayByteOps;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.ValueRank;
@@ -320,7 +324,7 @@ public class ModbusServerDevice implements Device {
 
   static Object readRawRegisterValue(
       ModbusDataType dataType,
-      Set<Modifier> modifiers,
+      Set<DataTypeModifier> modifiers,
       byte[] registerBytes
   ) throws UaException {
 
@@ -393,26 +397,29 @@ public class ModbusServerDevice implements Device {
     subscriptionModel.onMonitoringModeChanged(monitoredItems);
   }
 
-  private static ByteArrayByteOps getByteOps(Set<Modifier> modifiers) {
-    if (modifiers.contains(Modifier.BYTE_ORDER_BIG_ENDIAN)) {
-      if (modifiers.contains(Modifier.WORD_ORDER_LOW_HIGH)) {
-        return ByteArrayByteOps.BIG_ENDIAN_WORD_SWAPPED;
-      } else {
-        return ByteArrayByteOps.BIG_ENDIAN;
+  private static ByteArrayByteOps getByteOps(Set<DataTypeModifier> modifiers) {
+    ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
+    WordOrder wordOrder = WordOrder.HIGH_LOW;
+
+    for (DataTypeModifier modifier : modifiers) {
+      if (modifier instanceof ByteOrderModifier m) {
+        byteOrder = m.byteOrder();
       }
-    } else if (modifiers.contains(Modifier.BYTE_ORDER_LITTLE_ENDIAN)) {
-      if (modifiers.contains(Modifier.WORD_ORDER_LOW_HIGH)) {
-        return ByteArrayByteOps.LITTLE_ENDIAN_WORD_SWAPPED;
-      } else {
-        return ByteArrayByteOps.LITTLE_ENDIAN;
-      }
-    } else {
-      if (modifiers.contains(Modifier.WORD_ORDER_LOW_HIGH)) {
-        return ByteArrayByteOps.BIG_ENDIAN_WORD_SWAPPED;
-      } else {
-        return ByteArrayByteOps.BIG_ENDIAN;
+      if (modifier instanceof WordOrderModifier m) {
+        wordOrder = m.wordOrder();
       }
     }
+
+    return switch (byteOrder) {
+      case BIG_ENDIAN -> switch (wordOrder) {
+        case HIGH_LOW -> ByteArrayByteOps.BIG_ENDIAN;
+        case LOW_HIGH -> ByteArrayByteOps.BIG_ENDIAN_WORD_SWAPPED;
+      };
+      case LITTLE_ENDIAN -> switch (wordOrder) {
+        case HIGH_LOW -> ByteArrayByteOps.LITTLE_ENDIAN;
+        case LOW_HIGH -> ByteArrayByteOps.LITTLE_ENDIAN_WORD_SWAPPED;
+      };
+    };
   }
 
   private static class PendingRead {

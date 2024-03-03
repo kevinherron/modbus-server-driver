@@ -151,11 +151,4 @@ public sealed interface ModbusDataType permits
     }
   }
 
-  enum Modifier {
-    BYTE_ORDER_BIG_ENDIAN,
-    BYTE_ORDER_LITTLE_ENDIAN,
-    WORD_ORDER_HIGH_LOW,
-    WORD_ORDER_LOW_HIGH
-  }
-
 }

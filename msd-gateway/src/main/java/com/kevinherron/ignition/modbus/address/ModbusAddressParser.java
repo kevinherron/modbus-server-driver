@@ -1,9 +1,14 @@
 package com.kevinherron.ignition.modbus.address;
 
-import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.ByteOrder;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.ByteOrderModifier;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrder;
+import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrderModifier;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
 
 public class ModbusAddressParser {
@@ -37,7 +42,7 @@ public class ModbusAddressParser {
     ModbusDataType dataType = parseDataType(area, matcher.group(2))
         .orElseThrow(() -> new Exception("invalid DataType: " + matcher.group(2)));
 
-    EnumSet<ModbusDataType.Modifier> dataTypeModifiers = parseDataTypeModifiers(matcher.group(4))
+    Set<DataTypeModifier> dataTypeModifiers = parseDataTypeModifiers(matcher.group(4))
         .orElseThrow(() -> new Exception("invalid modifiers: " + matcher.group(4)));
 
     int offset = Integer.parseInt(matcher.group(5));
@@ -106,21 +111,21 @@ public class ModbusAddressParser {
     return Optional.ofNullable(mdt);
   }
 
-  private static Optional<EnumSet<ModbusDataType.Modifier>> parseDataTypeModifiers(String modifiers) {
-    var set = EnumSet.noneOf(ModbusDataType.Modifier.class);
-
+  private static Optional<Set<DataTypeModifier>> parseDataTypeModifiers(String modifiers) {
     if (modifiers == null || modifiers.isEmpty()) {
-      return Optional.of(set);
+      return Optional.of(Set.of());
     }
 
     // TODO this ignores invalid modifiers instead of returning empty
 
+    var set = new HashSet<DataTypeModifier>();
+
     for (String s : modifiers.split("@")) {
-      ModbusDataType.Modifier m = switch (s.toUpperCase()) {
-        case "BE" -> ModbusDataType.Modifier.BYTE_ORDER_BIG_ENDIAN;
-        case "LE" -> ModbusDataType.Modifier.BYTE_ORDER_LITTLE_ENDIAN;
-        case "HL" -> ModbusDataType.Modifier.WORD_ORDER_HIGH_LOW;
-        case "LH" -> ModbusDataType.Modifier.WORD_ORDER_LOW_HIGH;
+      DataTypeModifier m = switch (s.toUpperCase()) {
+        case "BE" -> new ByteOrderModifier(ByteOrder.BIG_ENDIAN);
+        case "LE" -> new ByteOrderModifier(ByteOrder.LITTLE_ENDIAN);
+        case "HL" -> new WordOrderModifier(WordOrder.HIGH_LOW);
+        case "LH" -> new WordOrderModifier(WordOrder.LOW_HIGH);
         default -> null;
       };
 
