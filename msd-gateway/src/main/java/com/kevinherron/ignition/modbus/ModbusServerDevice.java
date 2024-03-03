@@ -94,6 +94,8 @@ public class ModbusServerDevice implements Device {
 
   @Override
   public void startup() {
+    subscriptionModel.startup();
+
     NettyServerTransport transport = new NettyServerTransport(
         NettyServerTransportConfig.create(cfg -> {
           cfg.bindAddress = modbusServerSettings.getBindAddress();
@@ -125,6 +127,8 @@ public class ModbusServerDevice implements Device {
 
   @Override
   public void shutdown() {
+    subscriptionModel.shutdown();
+
     if (server != null) {
       try {
         server.stop();
@@ -185,12 +189,14 @@ public class ModbusServerDevice implements Device {
 
       if (readValueId.getIndexRange() != null && !readValueId.getIndexRange().isEmpty()) {
         // TODO support index ranges on array values
-        pending.value = new DataValue(StatusCodes.Bad_NotSupported);
+        pending.value = new DataValue(StatusCodes.Bad_WriteNotSupported);
         break;
       }
 
       String id = readValueId.getNodeId().getIdentifier().toString();
-      String addr = id.substring(id.indexOf("[%s]".formatted(getName())));
+      String name = "[%s]".formatted(getName());
+      String addr = id.substring(id.indexOf(name) + name.length());
+
       try {
         ModbusAddress address = ModbusAddressParser.parse(addr);
         AttributeId attributeId = AttributeId.from(readValueId.getAttributeId()).orElse(null);
@@ -213,6 +219,7 @@ public class ModbusServerDevice implements Device {
           }
         }
       } catch (Exception e) {
+        logger.error("Error reading value: id={}, addr={}", id, addr, e);
         pending.value = new DataValue(StatusCodes.Bad_ConfigurationError);
       }
     }
@@ -300,7 +307,7 @@ public class ModbusServerDevice implements Device {
         if (address instanceof ModbusAddress.ArrayAddress a) {
           yield a.getDimensions().length;
         } else {
-          yield ValueRank.Scalar;
+          yield ValueRank.Scalar.getValue();
         }
       }
       case ArrayDimensions -> {
@@ -380,8 +387,15 @@ public class ModbusServerDevice implements Device {
 
     for (PendingWrite pending : pendingWrites) {
       WriteValue writeValue = pending.writeValue;
+
+      if (writeValue.getIndexRange() != null && !writeValue.getIndexRange().isEmpty()) {
+        pending.statusCode = new StatusCode(StatusCodes.Bad_WriteNotSupported);
+        break;
+      }
+
       String id = writeValue.getNodeId().getIdentifier().toString();
-      String addr = id.substring(id.indexOf("[%s]".formatted(getName())));
+      String name = "[%s]".formatted(getName());
+      String addr = id.substring(id.indexOf(name) + name.length());
 
       try {
         ModbusAddress address = ModbusAddressParser.parse(addr);
@@ -406,7 +420,7 @@ public class ModbusServerDevice implements Device {
       }
     }
 
-    context.success(Collections.nCopies(writeValues.size(), new StatusCode(StatusCodes.Bad_NotWritable)));
+    context.success(pendingWrites.stream().map(p -> p.statusCode).toList());
   }
 
   private void writeValueAttribute(ModbusAddress address, Variant value) throws UaException {
@@ -502,7 +516,7 @@ public class ModbusServerDevice implements Device {
       Set<DataTypeModifier> modifiers
   ) throws UaException {
 
-    byte[] valueBytes = new byte[dataType.getRegisterCount() / 2];
+    byte[] valueBytes = new byte[dataType.getRegisterCount() * 2];
 
     if (dataType instanceof ModbusDataType.Bool) {
       if (value instanceof Boolean v) {
@@ -560,8 +574,8 @@ public class ModbusServerDevice implements Device {
       }
     } else if (dataType instanceof ModbusDataType.String d) {
       if (value instanceof String v) {
-        byte[] bytes = v.getBytes(StandardCharsets.UTF_8);
-        System.arraycopy(bytes, 0, valueBytes, 0, Math.min(bytes.length, valueBytes.length));
+        byte[] stringBytes = v.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(stringBytes, 0, valueBytes, 0, Math.min(stringBytes.length, valueBytes.length));
       } else {
         throw new UaException(StatusCodes.Bad_TypeMismatch);
       }
