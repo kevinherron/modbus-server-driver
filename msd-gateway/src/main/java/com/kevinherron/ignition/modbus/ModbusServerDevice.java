@@ -1,5 +1,6 @@
 package com.kevinherron.ignition.modbus;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -249,10 +250,10 @@ public class ModbusServerDevice implements Device {
               address.getDataType().getRegisterCount(),
               services.holdingRegisterMap
           );
-          Object value = readRawRegisterValue(
+          Object value = getValueForBytes(
+              registerBytes,
               address.getDataType(),
-              address.getDataTypeModifiers(),
-              registerBytes
+              address.getDataTypeModifiers()
           );
           yield new Variant(value);
         } finally {
@@ -267,10 +268,10 @@ public class ModbusServerDevice implements Device {
               address.getDataType().getRegisterCount(),
               services.inputRegisterMap
           );
-          Object value = readRawRegisterValue(
+          Object value = getValueForBytes(
+              registerBytes,
               address.getDataType(),
-              address.getDataTypeModifiers(),
-              registerBytes
+              address.getDataTypeModifiers()
           );
           yield new Variant(value);
         } finally {
@@ -322,15 +323,15 @@ public class ModbusServerDevice implements Device {
     return new Variant(o);
   }
 
-  static Object readRawRegisterValue(
+  static Object getValueForBytes(
+      byte[] registerBytes,
       ModbusDataType dataType,
-      Set<DataTypeModifier> modifiers,
-      byte[] registerBytes
+      Set<DataTypeModifier> modifiers
   ) throws UaException {
 
     if (dataType instanceof ModbusDataType.Bit d) {
       // read underlying value, check and return specified bit
-      Object value = readRawRegisterValue(d.underlyingType(), modifiers, registerBytes);
+      Object value = getValueForBytes(registerBytes, d.underlyingType(), modifiers);
       if (value instanceof Number n) {
         return (n.longValue() & (1L << d.bit())) != 0L;
       } else {
@@ -373,8 +374,106 @@ public class ModbusServerDevice implements Device {
 
   @Override
   public void write(WriteContext context, List<WriteValue> writeValues) {
-    // TODO
+    var pendingWrites = writeValues.stream()
+        .map(PendingWrite::new)
+        .toList();
+
+    for (PendingWrite pending : pendingWrites) {
+      WriteValue writeValue = pending.writeValue;
+      String id = writeValue.getNodeId().getIdentifier().toString();
+      String addr = id.substring(id.indexOf("[%s]".formatted(getName())));
+
+      try {
+        ModbusAddress address = ModbusAddressParser.parse(addr);
+        AttributeId attributeId = AttributeId.from(writeValue.getAttributeId()).orElse(null);
+
+        if (attributeId == null) {
+          pending.statusCode = new StatusCode(StatusCodes.Bad_AttributeIdInvalid);
+        } else if (attributeId == AttributeId.Value) {
+          // TODO group all bit writes an apply them atomically?
+          try {
+            writeValueAttribute(address, writeValue.getValue().getValue());
+            pending.statusCode = StatusCode.GOOD;
+          } catch (UaException e) {
+            pending.statusCode = e.getStatusCode();
+          }
+        } else {
+          pending.statusCode = new StatusCode(StatusCodes.Bad_NotWritable);
+        }
+
+      } catch (Exception e) {
+        pending.statusCode = new StatusCode(StatusCodes.Bad_ConfigurationError);
+      }
+    }
+
     context.success(Collections.nCopies(writeValues.size(), new StatusCode(StatusCodes.Bad_NotWritable)));
+  }
+
+  private void writeValueAttribute(ModbusAddress address, Variant value) throws UaException {
+    switch (address.getArea()) {
+      case COILS -> {
+        if (value.getValue() instanceof Boolean b) {
+          services.coilLock.writeLock().lock();
+          try {
+            services.coilMap.put(address.getOffset(), b);
+          } finally {
+            services.coilLock.writeLock().unlock();
+          }
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      }
+      case DISCRETE_INPUTS -> {
+        if (value.getValue() instanceof Boolean b) {
+          services.discreteInputLock.writeLock().lock();
+          try {
+            services.discreteInputMap.put(address.getOffset(), b);
+          } finally {
+            services.discreteInputLock.writeLock().unlock();
+          }
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      }
+      case HOLDING_REGISTERS -> {
+        services.holdingRegisterLock.writeLock().lock();
+        try {
+          if (address.getDataType() instanceof ModbusDataType.Bit) {
+            // TODO write to the bit in the underlying register
+            throw new UaException(StatusCodes.Bad_NotWritable);
+          } else {
+            byte[] registerBytes = getBytesForValue(
+                value.getValue(),
+                address.getDataType(),
+                address.getDataTypeModifiers()
+            );
+
+            ModbusServicesImpl.writeRegisters(address.getOffset(), registerBytes, services.holdingRegisterMap);
+          }
+        } finally {
+          services.holdingRegisterLock.writeLock().unlock();
+        }
+      }
+      case INPUT_REGISTERS -> {
+        services.inputRegisterLock.writeLock().lock();
+        try {
+          if (address.getDataType() instanceof ModbusDataType.Bit) {
+            // TODO write to the bit in the underlying register
+            throw new UaException(StatusCodes.Bad_NotWritable);
+          } else {
+            byte[] registerBytes = getBytesForValue(
+                value.getValue(),
+                address.getDataType(),
+                address.getDataTypeModifiers()
+            );
+
+            ModbusServicesImpl.writeRegisters(address.getOffset(), registerBytes, services.inputRegisterMap);
+          }
+        } finally {
+          services.inputRegisterLock.writeLock().unlock();
+        }
+      }
+    }
   }
 
   @Override
@@ -395,6 +494,82 @@ public class ModbusServerDevice implements Device {
   @Override
   public void onMonitoringModeChanged(List<MonitoredItem> monitoredItems) {
     subscriptionModel.onMonitoringModeChanged(monitoredItems);
+  }
+
+  static byte[] getBytesForValue(
+      Object value,
+      ModbusDataType dataType,
+      Set<DataTypeModifier> modifiers
+  ) throws UaException {
+
+    byte[] valueBytes = new byte[dataType.getRegisterCount() / 2];
+
+    if (dataType instanceof ModbusDataType.Bool) {
+      if (value instanceof Boolean v) {
+        getByteOps(modifiers).setBoolean(valueBytes, 0, v);
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.Int16) {
+      if (value instanceof Short v) {
+        getByteOps(modifiers).setShort(valueBytes, 0, v);
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.UInt16) {
+      if (value instanceof UShort v) {
+        getByteOps(modifiers).setShort(valueBytes, 0, v.shortValue());
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.Int32) {
+      if (value instanceof Integer v) {
+        getByteOps(modifiers).setInt(valueBytes, 0, v);
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.UInt32) {
+      if (value instanceof UInteger v) {
+        getByteOps(modifiers).setInt(valueBytes, 0, v.intValue());
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.Int64) {
+      if (value instanceof Long v) {
+        getByteOps(modifiers).setLong(valueBytes, 0, v);
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.UInt64) {
+      if (value instanceof ULong v) {
+        getByteOps(modifiers).setLong(valueBytes, 0, v.longValue());
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.Float32) {
+      if (value instanceof Float v) {
+        getByteOps(modifiers).setFloat(valueBytes, 0, v);
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.Double64) {
+      if (value instanceof Double v) {
+        getByteOps(modifiers).setDouble(valueBytes, 0, v);
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else if (dataType instanceof ModbusDataType.String d) {
+      if (value instanceof String v) {
+        byte[] bytes = v.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(bytes, 0, valueBytes, 0, Math.min(bytes.length, valueBytes.length));
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else {
+      throw new UaException(StatusCodes.Bad_InternalError, "dataType: " + dataType);
+    }
+
+    return valueBytes;
   }
 
   private static ByteArrayByteOps getByteOps(Set<DataTypeModifier> modifiers) {
@@ -427,6 +602,13 @@ public class ModbusServerDevice implements Device {
     final ReadValueId readValueId;
 
     private PendingRead(ReadValueId readValueId) {this.readValueId = readValueId;}
+  }
+
+  private static class PendingWrite {
+    volatile StatusCode statusCode;
+    final WriteValue writeValue;
+
+    private PendingWrite(WriteValue writeValue) {this.writeValue = writeValue;}
   }
 
   static class ModbusServicesImpl implements ModbusServices {
@@ -535,6 +717,13 @@ public class ModbusServerDevice implements Device {
       }
 
       return registers;
+    }
+
+    static void writeRegisters(int address, byte[] registers, Map<Integer, byte[]> registerMap) {
+      for (int i = 0; i < registers.length / 2; i++) {
+        byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
+        registerMap.put(address + i, value);
+      }
     }
 
     @Override
