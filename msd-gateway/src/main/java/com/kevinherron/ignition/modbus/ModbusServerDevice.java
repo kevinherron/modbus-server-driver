@@ -118,6 +118,8 @@ public class ModbusServerDevice implements Device {
       status = "Error";
       logger.error("Error starting Modbus server", e);
     }
+
+    onDataItemsCreated(deviceContext.getSubscriptionModel().getDataItems(getName()));
   }
 
   @Override
