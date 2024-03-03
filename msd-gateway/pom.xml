@@ -74,6 +74,11 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
+                    <fork>true</fork>
+                    <compilerArgs>
+                        <arg>-Werror</arg>
+                        <arg>-Xlint:all</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
         </plugins>

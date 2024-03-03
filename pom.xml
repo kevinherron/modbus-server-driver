@@ -13,6 +13,7 @@
     <description>Modbus Server Driver Module</description>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <ignition-sdk-version>8.1.37</ignition-sdk-version>
     </properties>
 
