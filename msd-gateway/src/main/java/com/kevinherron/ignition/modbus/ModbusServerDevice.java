@@ -14,6 +14,7 @@ import com.digitalpetri.modbus.server.ModbusServices;
 import com.digitalpetri.modbus.server.ModbusTcpServer;
 import com.digitalpetri.modbus.server.NettyServerTransport;
 import com.digitalpetri.modbus.server.NettyServerTransportConfig;
+import com.inductiveautomation.ignition.common.TypeUtilities;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
@@ -463,9 +464,13 @@ public class ModbusServerDevice implements Device {
         } else {
           v &= ~mask;
         }
-        // TODO getBytesForValue expects the type of `v` to be correct for `underlyingType`, but
-        //  it's always `long` right now...
-        byte[] newBytes = ModbusByteUtil.getBytesForValue(v, underlyingType, address.getDataTypeModifiers());
+        // TODO getBytesForValue expects the type of `v` to be correct for `underlyingType`
+        //  TypeUtilities doesn't know about unsigned types
+        byte[] newBytes = ModbusByteUtil.getBytesForValue(
+            TypeUtilities.coerce(v, underlyingValue.getClass()),
+            underlyingType,
+            address.getDataTypeModifiers()
+        );
         ModbusServicesImpl.writeRegisters(registerMap, address.getOffset(), newBytes);
       } else {
         throw new UaException(StatusCodes.Bad_TypeMismatch);
