@@ -174,9 +174,6 @@ public class ModbusServerDevice implements Device {
       List<ReadValueId> readValueIds
   ) {
 
-    // parse readValueIds into ModbusAddresses
-    // each ModbusAddress will inform us how many bytes to read from which area
-    // we'll read the bytes, then use the datatype information interpret those bytes accordingly
     List<PendingRead> pendingReads = readValueIds.stream()
         .map(PendingRead::new)
         .toList();
@@ -250,9 +247,9 @@ public class ModbusServerDevice implements Device {
         services.holdingRegisterLock.readLock().lock();
         try {
           byte[] registerBytes = ModbusServicesImpl.readRegisters(
+              services.holdingRegisterMap,
               address.getOffset(),
-              address.getDataType().getRegisterCount(),
-              services.holdingRegisterMap
+              address.getDataType().getRegisterCount()
           );
           Object value = ModbusByteUtil.getValueForBytes(
               registerBytes,
@@ -268,9 +265,9 @@ public class ModbusServerDevice implements Device {
         services.inputRegisterLock.readLock().lock();
         try {
           byte[] registerBytes = ModbusServicesImpl.readRegisters(
+              services.inputRegisterMap,
               address.getOffset(),
-              address.getDataType().getRegisterCount(),
-              services.inputRegisterMap
+              address.getDataType().getRegisterCount()
           );
           Object value = ModbusByteUtil.getValueForBytes(
               registerBytes,
@@ -362,7 +359,6 @@ public class ModbusServerDevice implements Device {
         } else {
           pending.statusCode = new StatusCode(StatusCodes.Bad_NotWritable);
         }
-
       } catch (Exception e) {
         pending.statusCode = new StatusCode(StatusCodes.Bad_ConfigurationError);
       }
@@ -400,9 +396,8 @@ public class ModbusServerDevice implements Device {
       case HOLDING_REGISTERS -> {
         services.holdingRegisterLock.writeLock().lock();
         try {
-          if (address.getDataType() instanceof ModbusDataType.Bit) {
-            // TODO write to the bit in the underlying register
-            throw new UaException(StatusCodes.Bad_NotWritable);
+          if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
+            writeBitToRegister(address, value, dataType, services.holdingRegisterMap);
           } else {
             byte[] registerBytes = ModbusByteUtil.getBytesForValue(
                 value.getValue(),
@@ -410,7 +405,7 @@ public class ModbusServerDevice implements Device {
                 address.getDataTypeModifiers()
             );
 
-            ModbusServicesImpl.writeRegisters(address.getOffset(), registerBytes, services.holdingRegisterMap);
+            ModbusServicesImpl.writeRegisters(services.holdingRegisterMap, address.getOffset(), registerBytes);
           }
         } finally {
           services.holdingRegisterLock.writeLock().unlock();
@@ -419,9 +414,8 @@ public class ModbusServerDevice implements Device {
       case INPUT_REGISTERS -> {
         services.inputRegisterLock.writeLock().lock();
         try {
-          if (address.getDataType() instanceof ModbusDataType.Bit) {
-            // TODO write to the bit in the underlying register
-            throw new UaException(StatusCodes.Bad_NotWritable);
+          if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
+            writeBitToRegister(address, value, dataType, services.inputRegisterMap);
           } else {
             byte[] registerBytes = ModbusByteUtil.getBytesForValue(
                 value.getValue(),
@@ -429,12 +423,52 @@ public class ModbusServerDevice implements Device {
                 address.getDataTypeModifiers()
             );
 
-            ModbusServicesImpl.writeRegisters(address.getOffset(), registerBytes, services.inputRegisterMap);
+            ModbusServicesImpl.writeRegisters(services.inputRegisterMap, address.getOffset(), registerBytes);
           }
         } finally {
           services.inputRegisterLock.writeLock().unlock();
         }
       }
+    }
+  }
+
+  private static void writeBitToRegister(
+      ModbusAddress address,
+      Variant value,
+      ModbusDataType.Bit dataType,
+      Map<Integer, byte[]> registerMap
+  ) throws UaException {
+
+    int bitIndex = dataType.bit();
+    ModbusDataType underlyingType = dataType.underlyingType();
+
+    byte[] bytes = ModbusServicesImpl.readRegisters(
+        registerMap,
+        address.getOffset(),
+        underlyingType.getRegisterCount()
+    );
+    Object underlyingValue = ModbusByteUtil.getValueForBytes(
+        bytes,
+        underlyingType,
+        address.getDataTypeModifiers()
+    );
+
+    if (underlyingValue instanceof Number n) {
+      long mask = 1L << bitIndex;
+      long v = n.longValue();
+      if (value.getValue() instanceof Boolean b) {
+        if (b) {
+          v |= mask;
+        } else {
+          v &= ~mask;
+        }
+        byte[] newBytes = ModbusByteUtil.getBytesForValue(v, underlyingType, address.getDataTypeModifiers());
+        ModbusServicesImpl.writeRegisters(registerMap, address.getOffset(), newBytes);
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else {
+      throw new UaException(StatusCodes.Bad_InternalError);
     }
   }
 
@@ -544,7 +578,7 @@ public class ModbusServerDevice implements Device {
         int address = request.address().intValue();
         int quantity = request.quantity().intValue();
 
-        var registers = readRegisters(address, quantity, holdingRegisterMap);
+        var registers = readRegisters(holdingRegisterMap, address, quantity);
 
         return new ReadHoldingRegistersResponse(registers);
       } finally {
@@ -559,7 +593,7 @@ public class ModbusServerDevice implements Device {
         int address = request.address().intValue();
         int quantity = request.quantity().intValue();
 
-        var registers = readRegisters(address, quantity, inputRegisterMap);
+        var registers = readRegisters(inputRegisterMap, address, quantity);
 
         return new ReadInputRegistersResponse(registers);
       } finally {
@@ -567,7 +601,7 @@ public class ModbusServerDevice implements Device {
       }
     }
 
-    static byte[] readRegisters(int address, int quantity, Map<Integer, byte[]> registerMap) {
+    static byte[] readRegisters(Map<Integer, byte[]> registerMap, int address, int quantity) {
       var registers = new byte[quantity * 2];
 
       for (int i = 0; i < quantity; i++) {
@@ -580,7 +614,7 @@ public class ModbusServerDevice implements Device {
       return registers;
     }
 
-    static void writeRegisters(int address, byte[] registers, Map<Integer, byte[]> registerMap) {
+    static void writeRegisters(Map<Integer, byte[]> registerMap, int address, byte[] registers) {
       for (int i = 0; i < registers.length / 2; i++) {
         byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
         registerMap.put(address + i, value);
