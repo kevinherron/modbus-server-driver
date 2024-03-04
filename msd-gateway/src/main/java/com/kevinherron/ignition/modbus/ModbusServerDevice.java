@@ -463,6 +463,8 @@ public class ModbusServerDevice implements Device {
         } else {
           v &= ~mask;
         }
+        // TODO getBytesForValue expects the type of `v` to be correct for `underlyingType`, but
+        //  it's always `long` right now...
         byte[] newBytes = ModbusByteUtil.getBytesForValue(v, underlyingType, address.getDataTypeModifiers());
         ModbusServicesImpl.writeRegisters(registerMap, address.getOffset(), newBytes);
       } else {
