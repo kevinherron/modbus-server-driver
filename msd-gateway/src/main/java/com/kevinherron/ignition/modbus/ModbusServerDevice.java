@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.digitalpetri.modbus.exceptions.ModbusResponseException;
 import com.digitalpetri.modbus.pdu.*;
 import com.digitalpetri.modbus.server.ModbusServices;
 import com.digitalpetri.modbus.server.ModbusTcpServer;
@@ -666,6 +667,12 @@ public class ModbusServerDevice implements Device {
       } finally {
         holdingRegisterLock.writeLock().unlock();
       }
+    }
+
+    @Override
+    public MaskWriteRegisterResponse maskWriteRegister(UByte unitId, MaskWriteRegisterRequest request) throws ModbusResponseException {
+      // TODO implement MaskWriteRegister
+      return ModbusServices.super.maskWriteRegister(unitId, request);
     }
 
   }
