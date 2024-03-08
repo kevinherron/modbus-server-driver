@@ -361,16 +361,16 @@ public class ModbusServerDevice implements Device {
       }
     }
 
-    Map<ModbusArea, List<PendingValueWrite>> pendingWritesByArea =
-        pendingValueWrites.stream().collect(Collectors.groupingBy(p -> p.address.getArea()));
-
-    pendingWritesByArea.forEach(this::writeValueAttributes);
+    // Process PendingValueWrites, grouped by Area
+    pendingValueWrites.stream()
+        .collect(Collectors.groupingBy(p -> p.address.getArea()))
+        .forEach(this::writeValueAttributes);
 
     context.success(pendingWrites.stream().map(p -> p.statusCode).toList());
   }
 
-  private void writeValueAttributes(ModbusArea area, List<PendingValueWrite> paws) {
-    assert paws.stream().allMatch(p -> p.address.getArea() == area);
+  private void writeValueAttributes(ModbusArea area, List<PendingValueWrite> pendingValueWrites) {
+    assert pendingValueWrites.stream().allMatch(p -> p.address.getArea() == area);
 
     ReadWriteLock lock = switch (area) {
       case COILS -> services.coilLock;
@@ -381,7 +381,7 @@ public class ModbusServerDevice implements Device {
 
     lock.writeLock().lock();
     try {
-      for (PendingValueWrite paw : paws) {
+      for (PendingValueWrite paw : pendingValueWrites) {
         try {
           writeValueAttribute(paw.address, paw.writeValue.getValue().getValue());
           paw.statusCode = StatusCode.GOOD;
