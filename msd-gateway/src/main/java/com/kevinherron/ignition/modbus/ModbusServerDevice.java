@@ -1,12 +1,10 @@
 package com.kevinherron.ignition.modbus;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 import com.digitalpetri.modbus.exceptions.ModbusResponseException;
 import com.digitalpetri.modbus.pdu.*;
@@ -14,11 +12,11 @@ import com.digitalpetri.modbus.server.ModbusServices;
 import com.digitalpetri.modbus.server.ModbusTcpServer;
 import com.digitalpetri.modbus.server.NettyServerTransport;
 import com.digitalpetri.modbus.server.NettyServerTransportConfig;
-import com.inductiveautomation.ignition.common.TypeUtilities;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
+import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
@@ -40,10 +38,11 @@ import org.eclipse.milo.opcua.stack.core.types.structured.ViewDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.WriteValue;
 import org.jetbrains.annotations.NotNull;
 import org.joou.UByte;
+import org.joou.UShort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.joou.Unsigned.ushort;
+import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.*;
 
 
 public class ModbusServerDevice implements Device {
@@ -93,10 +92,10 @@ public class ModbusServerDevice implements Device {
   public void startup() {
     subscriptionModel.startup();
 
-    NettyServerTransport transport = new NettyServerTransport(
+    var transport = new NettyServerTransport(
         NettyServerTransportConfig.create(cfg -> {
           cfg.bindAddress = modbusServerSettings.getBindAddress();
-          cfg.port = ushort(modbusServerSettings.getPort());
+          cfg.port = UShort.valueOf(modbusServerSettings.getPort());
         })
     );
 
@@ -224,7 +223,7 @@ public class ModbusServerDevice implements Device {
   }
 
   private Variant readValueAttribute(ModbusAddress address) throws UaException {
-    ModbusAddress.ModbusArea area = address.getArea();
+    ModbusArea area = address.getArea();
 
     return switch (area) {
       case COILS: {
@@ -332,103 +331,109 @@ public class ModbusServerDevice implements Device {
         .map(PendingWrite::new)
         .toList();
 
+    var pendingValueWrites = new ArrayList<PendingValueWrite>();
+
     for (PendingWrite pending : pendingWrites) {
       WriteValue writeValue = pending.writeValue;
 
       if (writeValue.getIndexRange() != null && !writeValue.getIndexRange().isEmpty()) {
+        // TODO support index ranges on array values
         pending.statusCode = new StatusCode(StatusCodes.Bad_WriteNotSupported);
         break;
       }
 
-      String id = writeValue.getNodeId().getIdentifier().toString();
-      String name = "[%s]".formatted(getName());
-      String addr = id.substring(id.indexOf(name) + name.length());
+      AttributeId attributeId = AttributeId.from(writeValue.getAttributeId()).orElse(null);
 
-      try {
-        ModbusAddress address = ModbusAddressParser.parse(addr);
-        AttributeId attributeId = AttributeId.from(writeValue.getAttributeId()).orElse(null);
-
-        if (attributeId == null) {
-          pending.statusCode = new StatusCode(StatusCodes.Bad_AttributeIdInvalid);
-        } else if (attributeId == AttributeId.Value) {
-          // TODO group all bit writes an apply them atomically?
-          try {
-            writeValueAttribute(address, writeValue.getValue().getValue());
-            pending.statusCode = StatusCode.GOOD;
-          } catch (UaException e) {
-            pending.statusCode = e.getStatusCode();
-          }
-        } else {
-          pending.statusCode = new StatusCode(StatusCodes.Bad_NotWritable);
+      if (attributeId == null) {
+        pending.statusCode = new StatusCode(StatusCodes.Bad_AttributeIdInvalid);
+      } else if (attributeId == AttributeId.Value) {
+        String id = writeValue.getNodeId().getIdentifier().toString();
+        String name = "[%s]".formatted(getName());
+        String addr = id.substring(id.indexOf(name) + name.length());
+        try {
+          ModbusAddress address = ModbusAddressParser.parse(addr);
+          pendingValueWrites.add(new PendingValueWrite(writeValue, address));
+        } catch (Exception e) {
+          pending.statusCode = new StatusCode(StatusCodes.Bad_ConfigurationError);
         }
-      } catch (Exception e) {
-        pending.statusCode = new StatusCode(StatusCodes.Bad_ConfigurationError);
+      } else {
+        pending.statusCode = new StatusCode(StatusCodes.Bad_NotWritable);
       }
     }
 
+    Map<ModbusArea, List<PendingValueWrite>> pendingWritesByArea =
+        pendingValueWrites.stream().collect(Collectors.groupingBy(p -> p.address.getArea()));
+
+    pendingWritesByArea.forEach(this::writeValueAttributes);
+
     context.success(pendingWrites.stream().map(p -> p.statusCode).toList());
+  }
+
+  private void writeValueAttributes(ModbusArea area, List<PendingValueWrite> paws) {
+    assert paws.stream().allMatch(p -> p.address.getArea() == area);
+
+    ReadWriteLock lock = switch (area) {
+      case COILS -> services.coilLock;
+      case DISCRETE_INPUTS -> services.discreteInputLock;
+      case HOLDING_REGISTERS -> services.holdingRegisterLock;
+      case INPUT_REGISTERS -> services.inputRegisterLock;
+    };
+
+    lock.writeLock().lock();
+    try {
+      for (PendingValueWrite paw : paws) {
+        try {
+          writeValueAttribute(paw.address, paw.writeValue.getValue().getValue());
+          paw.statusCode = StatusCode.GOOD;
+        } catch (UaException e) {
+          paw.statusCode = e.getStatusCode();
+        }
+      }
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   private void writeValueAttribute(ModbusAddress address, Variant value) throws UaException {
     switch (address.getArea()) {
       case COILS -> {
         if (value.getValue() instanceof Boolean b) {
-          services.coilLock.writeLock().lock();
-          try {
-            services.coilMap.put(address.getOffset(), b);
-          } finally {
-            services.coilLock.writeLock().unlock();
-          }
+          services.coilMap.put(address.getOffset(), b);
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
       }
       case DISCRETE_INPUTS -> {
         if (value.getValue() instanceof Boolean b) {
-          services.discreteInputLock.writeLock().lock();
-          try {
-            services.discreteInputMap.put(address.getOffset(), b);
-          } finally {
-            services.discreteInputLock.writeLock().unlock();
-          }
+          services.discreteInputMap.put(address.getOffset(), b);
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
       }
       case HOLDING_REGISTERS -> {
-        services.holdingRegisterLock.writeLock().lock();
-        try {
-          if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-            writeBitToRegister(address, value, dataType, services.holdingRegisterMap);
-          } else {
-            byte[] registerBytes = ModbusByteUtil.getBytesForValue(
-                value.getValue(),
-                address.getDataType(),
-                address.getDataTypeModifiers()
-            );
+        if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
+          writeBitToRegister(address, value, dataType, services.holdingRegisterMap);
+        } else {
+          byte[] registerBytes = ModbusByteUtil.getBytesForValue(
+              value.getValue(),
+              address.getDataType(),
+              address.getDataTypeModifiers()
+          );
 
-            ModbusServicesImpl.writeRegisters(services.holdingRegisterMap, address.getOffset(), registerBytes);
-          }
-        } finally {
-          services.holdingRegisterLock.writeLock().unlock();
+          ModbusServicesImpl.writeRegisters(services.holdingRegisterMap, address.getOffset(), registerBytes);
         }
       }
       case INPUT_REGISTERS -> {
-        services.inputRegisterLock.writeLock().lock();
-        try {
-          if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-            writeBitToRegister(address, value, dataType, services.inputRegisterMap);
-          } else {
-            byte[] registerBytes = ModbusByteUtil.getBytesForValue(
-                value.getValue(),
-                address.getDataType(),
-                address.getDataTypeModifiers()
-            );
+        if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
+          writeBitToRegister(address, value, dataType, services.inputRegisterMap);
+        } else {
+          byte[] registerBytes = ModbusByteUtil.getBytesForValue(
+              value.getValue(),
+              address.getDataType(),
+              address.getDataTypeModifiers()
+          );
 
-            ModbusServicesImpl.writeRegisters(services.inputRegisterMap, address.getOffset(), registerBytes);
-          }
-        } finally {
-          services.inputRegisterLock.writeLock().unlock();
+          ModbusServicesImpl.writeRegisters(services.inputRegisterMap, address.getOffset(), registerBytes);
         }
       }
     }
@@ -464,10 +469,8 @@ public class ModbusServerDevice implements Device {
         } else {
           v &= ~mask;
         }
-        // TODO getBytesForValue expects the type of `v` to be correct for `underlyingType`
-        //  TypeUtilities doesn't know about unsigned types
         byte[] newBytes = ModbusByteUtil.getBytesForValue(
-            TypeUtilities.coerce(v, underlyingValue.getClass()),
+            castToUnderlying(v, underlyingType),
             underlyingType,
             address.getDataTypeModifiers()
         );
@@ -477,6 +480,24 @@ public class ModbusServerDevice implements Device {
       }
     } else {
       throw new UaException(StatusCodes.Bad_InternalError);
+    }
+  }
+
+  private static Number castToUnderlying(long value, ModbusDataType dataType) {
+    if (dataType instanceof ModbusDataType.Int16) {
+      return (short) value;
+    } else if (dataType instanceof ModbusDataType.Int32) {
+      return (int) value;
+    } else if (dataType instanceof ModbusDataType.Int64) {
+      return value;
+    } else if (dataType instanceof ModbusDataType.UInt16) {
+      return ushort((int) value);
+    } else if (dataType instanceof ModbusDataType.UInt32) {
+      return uint(value);
+    } else if (dataType instanceof ModbusDataType.UInt64) {
+      return ulong(value);
+    } else {
+      throw new IllegalArgumentException("value=" + value + ", dataType=" + dataType);
     }
   }
 
@@ -512,6 +533,15 @@ public class ModbusServerDevice implements Device {
     final WriteValue writeValue;
 
     private PendingWrite(WriteValue writeValue) {this.writeValue = writeValue;}
+  }
+
+  private static class PendingValueWrite extends PendingWrite {
+    final ModbusAddress address;
+
+    private PendingValueWrite(WriteValue writeValue, ModbusAddress address) {
+      super(writeValue);
+      this.address = address;
+    }
   }
 
   static class ModbusServicesImpl implements ModbusServices {
