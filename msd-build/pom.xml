@@ -17,7 +17,7 @@
         <dependency>
             <groupId>com.kevinherron</groupId>
             <artifactId>msd-gateway</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 
@@ -48,8 +48,8 @@
                     <moduleId>com.kevinherron.modbus-server-driver</moduleId>
                     <moduleName>${project.parent.name}</moduleName>
                     <moduleDescription>${project.description}</moduleDescription>
-                    <moduleVersion>1.0.0-SNAPSHOT</moduleVersion>
-                    <requiredIgnitionVersion>${ignition-sdk-version}</requiredIgnitionVersion>
+                    <moduleVersion>${project.version}</moduleVersion>
+                    <requiredIgnitionVersion>${ignition-sdk.version}</requiredIgnitionVersion>
 
                     <depends>
                         <depend>
@@ -64,7 +64,6 @@
                             <hookClass>com.kevinherron.ignition.modbus.ModbusServerModuleHook</hookClass>
                         </hook>
                     </hooks>
-
                 </configuration>
             </plugin>
         </plugins>

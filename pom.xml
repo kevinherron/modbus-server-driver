@@ -14,7 +14,13 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <ignition-sdk-version>8.1.37</ignition-sdk-version>
+
+        <!-- Dependencies -->
+        <ignition-sdk.version>8.1.37</ignition-sdk.version>
+        <modbus.version>2.0.0-SNAPSHOT</modbus.version>
+
+        <!-- Test Dependencies -->
+        <junit.version>5.10.2</junit.version>
     </properties>
 
     <modules>
