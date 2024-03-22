@@ -381,12 +381,12 @@ public class ModbusServerDevice implements Device {
 
     lock.writeLock().lock();
     try {
-      for (PendingValueWrite paw : pendingValueWrites) {
+      for (PendingValueWrite pvw : pendingValueWrites) {
         try {
-          writeValueAttribute(paw.address, paw.writeValue.getValue().getValue());
-          paw.statusCode = StatusCode.GOOD;
+          writeValueAttribute(pvw.address, pvw.writeValue.getValue().getValue());
+          pvw.statusCode = StatusCode.GOOD;
         } catch (UaException e) {
-          paw.statusCode = e.getStatusCode();
+          pvw.statusCode = e.getStatusCode();
         }
       }
     } finally {
@@ -394,28 +394,30 @@ public class ModbusServerDevice implements Device {
     }
   }
 
-  private void writeValueAttribute(ModbusAddress address, Variant value) throws UaException {
+  private void writeValueAttribute(ModbusAddress address, Variant variant) throws UaException {
     switch (address.getArea()) {
       case COILS -> {
-        if (value.getValue() instanceof Boolean b) {
+        if (variant.getValue() instanceof Boolean b) {
           services.coilMap.put(address.getOffset(), b);
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
       }
       case DISCRETE_INPUTS -> {
-        if (value.getValue() instanceof Boolean b) {
+        if (variant.getValue() instanceof Boolean b) {
           services.discreteInputMap.put(address.getOffset(), b);
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
       }
       case HOLDING_REGISTERS -> {
+        checkDataType(address.getDataType(), variant);
+
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          writeBitToRegister(address, value, dataType, services.holdingRegisterMap);
+          writeBitToRegister(address, variant, dataType, services.holdingRegisterMap);
         } else {
           byte[] registerBytes = ModbusByteUtil.getBytesForValue(
-              value.getValue(),
+              variant.getValue(),
               address.getDataType(),
               address.getDataTypeModifiers()
           );
@@ -424,11 +426,13 @@ public class ModbusServerDevice implements Device {
         }
       }
       case INPUT_REGISTERS -> {
+        checkDataType(address.getDataType(), variant);
+
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          writeBitToRegister(address, value, dataType, services.inputRegisterMap);
+          writeBitToRegister(address, variant, dataType, services.inputRegisterMap);
         } else {
           byte[] registerBytes = ModbusByteUtil.getBytesForValue(
-              value.getValue(),
+              variant.getValue(),
               address.getDataType(),
               address.getDataTypeModifiers()
           );
@@ -439,9 +443,30 @@ public class ModbusServerDevice implements Device {
     }
   }
 
+  /**
+   * Check that a value is of the correct type for the given ModbusDataType.
+   *
+   * @param dataType the {@link ModbusDataType}.
+   * @param variant the {@link Variant} to check.
+   * @throws UaException if the value is {@code null}, or not of the correct type.
+   */
+  private static void checkDataType(ModbusDataType dataType, Variant variant) throws UaException {
+    Object value = variant.getValue();
+    if (value == null) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch);
+    }
+
+    Class<?> actualType = variant.getValue().getClass();
+    Class<?> expectedType = dataType.getBuiltinDataType().getBackingClass();
+
+    if (!expectedType.isAssignableFrom(actualType)) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch);
+    }
+  }
+
   private static void writeBitToRegister(
       ModbusAddress address,
-      Variant value,
+      Variant variant,
       ModbusDataType.Bit dataType,
       Map<Integer, byte[]> registerMap
   ) throws UaException {
@@ -463,7 +488,7 @@ public class ModbusServerDevice implements Device {
     if (underlyingValue instanceof Number n) {
       long mask = 1L << bitIndex;
       long v = n.longValue();
-      if (value.getValue() instanceof Boolean b) {
+      if (variant.getValue() instanceof Boolean b) {
         if (b) {
           v |= mask;
         } else {
