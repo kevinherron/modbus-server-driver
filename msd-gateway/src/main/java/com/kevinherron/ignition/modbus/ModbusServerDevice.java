@@ -708,8 +708,26 @@ public class ModbusServerDevice implements Device {
 
     @Override
     public MaskWriteRegisterResponse maskWriteRegister(UByte unitId, MaskWriteRegisterRequest request) throws ModbusResponseException {
-      // TODO implement MaskWriteRegister
-      return ModbusServices.super.maskWriteRegister(unitId, request);
+      // Result = (Current Contents AND And_Mask) OR (Or_Mask AND (NOT And_Mask))
+      int address = request.address().intValue();
+      int andMask = request.andMask().intValue();
+      int orMask = request.orMask().intValue();
+
+      holdingRegisterLock.writeLock().lock();
+      try {
+        byte[] value = holdingRegisterMap.getOrDefault(address, new byte[2]);
+        int currentValue = (value[0] << 8) | (value[1] & 0xFF);
+        int result = (currentValue & andMask) | (orMask & ~andMask);
+
+        byte b0 = (byte) ((result >> 8) & 0xFF);
+        byte b1 = (byte) (result & 0xFF);
+        byte[] bs = new byte[]{b0, b1};
+        holdingRegisterMap.put(address, bs);
+
+        return new MaskWriteRegisterResponse(request.address(), request.andMask(), request.orMask());
+      } finally {
+        holdingRegisterLock.writeLock().unlock();
+      }
     }
 
   }
