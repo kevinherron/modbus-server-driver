@@ -1,15 +1,16 @@
 package com.kevinherron.ignition.modbus.address;
 
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.regex.Pattern;
-
 import com.kevinherron.ignition.modbus.address.DataTypeModifier.ByteOrder;
 import com.kevinherron.ignition.modbus.address.DataTypeModifier.ByteOrderModifier;
 import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrder;
 import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrderModifier;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
+import org.jetbrains.annotations.Nullable;
+import org.joou.UByte;
 
 public class ModbusAddressParser {
 
@@ -20,13 +21,16 @@ public class ModbusAddressParser {
 
   static final Pattern ADDRESS_PATTERN = Pattern.compile(
       """
+          ((\\d+)\\.)?\
           (%s)\
           (?:<(%s)((?:%s){0,3})(?:(%s)?)>)?\
           (\\d+)\
           ((?:%s){0,3})?\
           (?:\\.(\\d+))?\
           """
-          .formatted(AREAS, DATA_TYPES, ARRAY_DIMENSIONS, DATA_TYPE_MODIFIERS, ARRAY_DIMENSIONS),
+          .formatted(
+              AREAS, DATA_TYPES,
+              ARRAY_DIMENSIONS, DATA_TYPE_MODIFIERS, ARRAY_DIMENSIONS),
       Pattern.CASE_INSENSITIVE
   );
 
@@ -36,32 +40,49 @@ public class ModbusAddressParser {
       throw new Exception("invalid address: " + address);
     }
 
-    ModbusArea area = parseArea(matcher.group(1))
-        .orElseThrow(() -> new Exception("invalid area: " + matcher.group(1)));
+    // System.out.println("0: " + matcher.group(0));
+    // System.out.println("1: " + matcher.group(1));
+    // System.out.println("2: " + matcher.group(2));
+    // System.out.println("3: " + matcher.group(3));
+    // System.out.println("4: " + matcher.group(4));
+    // System.out.println("5: " + matcher.group(5));
+    // System.out.println("6: " + matcher.group(6));
+    // System.out.println("7: " + matcher.group(7));
+    // System.out.println("8: " + matcher.group(8));
+    // System.out.println("9: " + matcher.group(9));
 
-    ModbusDataType dataType = parseDataType(area, matcher.group(2))
-        .orElseThrow(() -> new Exception("invalid DataType: " + matcher.group(2)));
+    UByte unitId = parseUnitId(matcher.group(2));
 
-    Set<DataTypeModifier> dataTypeModifiers = parseDataTypeModifiers(matcher.group(4))
-        .orElseThrow(() -> new Exception("invalid modifiers: " + matcher.group(4)));
+    ModbusArea area = parseArea(matcher.group(3))
+        .orElseThrow(() -> new Exception("invalid area: " + matcher.group(3)));
 
-    int offset = Integer.parseInt(matcher.group(5));
+    ModbusDataType dataType = parseDataType(area, matcher.group(4))
+        .orElseThrow(() -> new Exception("invalid DataType: " + matcher.group(4)));
 
-    if (matcher.group(7) != null) {
-      int bit = Integer.parseInt(matcher.group(7));
+    Set<DataTypeModifier> dataTypeModifiers = parseDataTypeModifiers(matcher.group(6))
+        .orElseThrow(() -> new Exception("invalid modifiers: " + matcher.group(6)));
+
+    int offset = Integer.parseInt(matcher.group(7));
+
+    if (matcher.group(9) != null) {
+      int bit = Integer.parseInt(matcher.group(9));
       dataType = new ModbusDataType.Bit(dataType, bit);
     }
 
-//    System.out.println("0: " + matcher.group(0));
-//    System.out.println("1: " + matcher.group(1));
-//    System.out.println("2: " + matcher.group(2));
-//    System.out.println("3: " + matcher.group(3));
-//    System.out.println("4: " + matcher.group(4));
-//    System.out.println("5: " + matcher.group(5));
-//    System.out.println("6: " + matcher.group(6));
-//    System.out.println("7: " + matcher.group(7));
+    // TODO scalar vs array address
+    return new ModbusAddress.ScalarAddress(unitId, area, offset, dataType, dataTypeModifiers);
+  }
 
-    return new ModbusAddress.ScalarAddress(area, offset, dataType, dataTypeModifiers);
+  private static @Nullable UByte parseUnitId(String unitId) throws Exception {
+    if (unitId != null) {
+      try {
+        return UByte.valueOf(unitId);
+      } catch (NumberFormatException ignored) {
+        throw new Exception("invalid unitId: " + unitId);
+      }
+    } else {
+      return null;
+    }
   }
 
   private static Optional<ModbusArea> parseArea(String area) {

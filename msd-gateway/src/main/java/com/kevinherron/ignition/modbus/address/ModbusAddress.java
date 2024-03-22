@@ -1,25 +1,35 @@
 package com.kevinherron.ignition.modbus.address;
 
+import java.util.Optional;
 import java.util.Set;
+import org.jetbrains.annotations.Nullable;
+import org.joou.UByte;
 
 public sealed abstract class ModbusAddress {
 
+  private final @Nullable UByte unitId;
   private final ModbusArea area;
   private final int offset;
   private final ModbusDataType dataType;
   private final Set<DataTypeModifier> dataTypeModifiers;
 
   protected ModbusAddress(
+      @Nullable UByte unitId,
       ModbusArea area,
       int offset,
       ModbusDataType dataType,
       Set<DataTypeModifier> dataTypeModifiers
   ) {
 
+    this.unitId = unitId;
     this.area = area;
     this.offset = offset;
     this.dataType = dataType;
     this.dataTypeModifiers = Set.copyOf(dataTypeModifiers);
+  }
+
+  public Optional<UByte> getUnitId() {
+    return Optional.ofNullable(unitId);
   }
 
   public ModbusArea getArea() {
@@ -44,6 +54,7 @@ public sealed abstract class ModbusAddress {
     private final int[] dimensions;
 
     public ArrayAddress(
+        @Nullable UByte unitId,
         ModbusArea area,
         int address,
         ModbusDataType dataType,
@@ -51,7 +62,7 @@ public sealed abstract class ModbusAddress {
         int[] dimensions
     ) {
 
-      super(area, address, dataType, dataTypeModifiers);
+      super(unitId, area, address, dataType, dataTypeModifiers);
 
       this.dimensions = dimensions;
     }
@@ -65,13 +76,14 @@ public sealed abstract class ModbusAddress {
   public static final class ScalarAddress extends ModbusAddress {
 
     public ScalarAddress(
+        @Nullable UByte unitId,
         ModbusArea area,
         int address,
         ModbusDataType dataType,
         Set<DataTypeModifier> dataTypeModifiers
     ) {
 
-      super(area, address, dataType, dataTypeModifiers);
+      super(unitId, area, address, dataType, dataTypeModifiers);
     }
 
   }

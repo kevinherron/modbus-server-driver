@@ -1,10 +1,14 @@
 package com.kevinherron.ignition.modbus.address;
 
-import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
-import org.junit.jupiter.api.Test;
-
 import static com.kevinherron.ignition.modbus.address.ModbusAddressParser.ADDRESS_PATTERN;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
+import org.joou.UByte;
+import org.junit.jupiter.api.Test;
 
 class ModbusAddressParserTest {
 
@@ -96,18 +100,19 @@ class ModbusAddressParserTest {
         assertInstanceOf(ModbusDataType.Int16.class, address.getDataType());
       }
     }
+  }
 
-//    {
-//      var address = ModbusAddressParser.parse("HR<int16>1");
-//      assertEquals(ModbusArea.HOLDING_REGISTERS, address.getArea());
-//      assertEquals(1, address.getAddress());
-//      assertInstanceOf(ModbusDataType.Int16.class, address.getDataType());
-//    }
-//
-//    ModbusAddressParser.parse("HR<int16[3]>1");
-//    ModbusAddressParser.parse("HR<int16@LE>1");
-//    ModbusAddressParser.parse("HR<int16[3]@LE>1");
-//    ModbusAddressParser.parse("HR<int16@LE>1.2");
+  @Test
+  void parseAddressWithUnitId() throws Exception {
+    for (int i = 0; i < 256; i++) {
+      var address = ModbusAddressParser.parse("%d.HR1".formatted(i));
+      assertEquals(UByte.valueOf(i), address.getUnitId().orElseThrow());
+      assertEquals(ModbusArea.HOLDING_REGISTERS, address.getArea());
+      assertEquals(1, address.getOffset());
+      assertInstanceOf(ModbusDataType.Int16.class, address.getDataType());
+    }
+
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("256.HR1"));
   }
 
 }
