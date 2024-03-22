@@ -78,6 +78,7 @@
                     <compilerArgs>
                         <arg>-Werror</arg>
                         <arg>-Xlint:all</arg>
+                        <arg>-Xlint:-classfile</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
