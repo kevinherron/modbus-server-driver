@@ -1,14 +1,14 @@
 package com.kevinherron.ignition.modbus;
 
-import com.digitalpetri.modbus.pdu.ReadCoilsRequest;
-import org.junit.jupiter.api.Test;
-
 import static org.joou.Unsigned.ubyte;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.digitalpetri.modbus.pdu.ReadCoilsRequest;
+import org.junit.jupiter.api.Test;
+
 class ModbusServicesImplTest {
 
-  ModbusServerDevice.ModbusServicesImpl services = new ModbusServerDevice.ModbusServicesImpl();
+  ModbusServicesImpl services = new ModbusServicesImpl();
 
   @Test
   void readCoilPatterns() {
