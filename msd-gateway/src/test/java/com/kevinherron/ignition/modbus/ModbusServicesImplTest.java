@@ -34,6 +34,7 @@ class ModbusServicesImplTest {
 
   private void assertCoilPattern(int address, int pattern) {
     var response = services.readCoils(
+        null,
         ubyte(0),
         new ReadCoilsRequest(address, 8)
     );

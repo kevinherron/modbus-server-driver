@@ -7,10 +7,14 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceType;
+import java.io.Serial;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class ModbusServerDeviceType extends DeviceType {
+
+  @Serial
+  private static final long serialVersionUID = 1L;
 
   public static final ModbusServerDeviceType INSTANCE = new ModbusServerDeviceType();
 

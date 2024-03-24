@@ -18,6 +18,11 @@ public abstract class AbstractByteOps<T> implements ByteOps<T> {
   }
 
   @Override
+  public byte getByte(T bytes, int index) {
+    return (byte) get(bytes, index);
+  }
+
+  @Override
   public short getShort(T bytes, int index) {
     return orderedOps.getShort(idx -> get(bytes, index + idx));
   }
@@ -49,6 +54,11 @@ public abstract class AbstractByteOps<T> implements ByteOps<T> {
     } else {
       set(bytes, index, 0);
     }
+  }
+
+  @Override
+  public void setByte(T bytes, int index, byte value) {
+    set(bytes, index, value);
   }
 
   @Override

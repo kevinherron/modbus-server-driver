@@ -66,7 +66,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
         })
     );
 
-    server = ModbusTcpServer.create(transport, services, cfg -> {});
+    server = ModbusTcpServer.create(transport, services);
 
     try {
       server.start();

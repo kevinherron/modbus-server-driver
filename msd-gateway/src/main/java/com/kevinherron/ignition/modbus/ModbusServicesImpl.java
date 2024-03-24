@@ -14,6 +14,7 @@ import com.digitalpetri.modbus.pdu.WriteMultipleRegistersRequest;
 import com.digitalpetri.modbus.pdu.WriteMultipleRegistersResponse;
 import com.digitalpetri.modbus.pdu.WriteSingleRegisterRequest;
 import com.digitalpetri.modbus.pdu.WriteSingleRegisterResponse;
+import com.digitalpetri.modbus.server.ModbusRequestContext;
 import com.digitalpetri.modbus.server.ModbusServices;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +37,12 @@ class ModbusServicesImpl implements ModbusServices {
   final Map<Integer, byte[]> inputRegisterMap = new HashMap<>();
 
   @Override
-  public ReadCoilsResponse readCoils(UByte unitId, ReadCoilsRequest request) {
+  public ReadCoilsResponse readCoils(
+      ModbusRequestContext context,
+      UByte unitId,
+      ReadCoilsRequest request
+  ) {
+
     coilLock.readLock().lock();
     try {
       int address = request.address().intValue();
@@ -51,8 +57,11 @@ class ModbusServicesImpl implements ModbusServices {
   }
 
   @Override
-  public ReadDiscreteInputsResponse readDiscreteInputs(UByte unitId,
-      ReadDiscreteInputsRequest request) {
+  public ReadDiscreteInputsResponse readDiscreteInputs(
+      ModbusRequestContext context,
+      UByte unitId,
+      ReadDiscreteInputsRequest request
+  ) {
 
     discreteInputLock.readLock().lock();
     try {
@@ -89,8 +98,11 @@ class ModbusServicesImpl implements ModbusServices {
   }
 
   @Override
-  public ReadHoldingRegistersResponse readHoldingRegisters(UByte unitId,
-      ReadHoldingRegistersRequest request) {
+  public ReadHoldingRegistersResponse readHoldingRegisters(
+      ModbusRequestContext context,
+      UByte unitId,
+      ReadHoldingRegistersRequest request
+  ) {
 
     holdingRegisterLock.readLock().lock();
     try {
@@ -106,8 +118,11 @@ class ModbusServicesImpl implements ModbusServices {
   }
 
   @Override
-  public ReadInputRegistersResponse readInputRegisters(UByte unitId,
-      ReadInputRegistersRequest request) {
+  public ReadInputRegistersResponse readInputRegisters(
+      ModbusRequestContext context,
+      UByte unitId,
+      ReadInputRegistersRequest request
+  ) {
 
     inputRegisterLock.readLock().lock();
     try {
@@ -143,8 +158,11 @@ class ModbusServicesImpl implements ModbusServices {
   }
 
   @Override
-  public WriteMultipleRegistersResponse writeMultipleRegisters(UByte unitId,
-      WriteMultipleRegistersRequest request) {
+  public WriteMultipleRegistersResponse writeMultipleRegisters(
+      ModbusRequestContext context,
+      UByte unitId,
+      WriteMultipleRegistersRequest request
+  ) {
 
     holdingRegisterLock.writeLock().lock();
     try {
@@ -170,8 +188,11 @@ class ModbusServicesImpl implements ModbusServices {
   }
 
   @Override
-  public WriteSingleRegisterResponse writeSingleRegister(UByte unitId,
-      WriteSingleRegisterRequest request) {
+  public WriteSingleRegisterResponse writeSingleRegister(
+      ModbusRequestContext context,
+      UByte unitId,
+      WriteSingleRegisterRequest request
+  ) {
 
     int address = request.address().intValue();
     int value = request.value().intValue();
@@ -194,8 +215,11 @@ class ModbusServicesImpl implements ModbusServices {
   }
 
   @Override
-  public MaskWriteRegisterResponse maskWriteRegister(UByte unitId,
-      MaskWriteRegisterRequest request) {
+  public MaskWriteRegisterResponse maskWriteRegister(
+      ModbusRequestContext context,
+      UByte unitId,
+      MaskWriteRegisterRequest request
+  ) {
 
     // Result = (Current Contents AND And_Mask) OR (Or_Mask AND (NOT And_Mask))
     int address = request.address().intValue();

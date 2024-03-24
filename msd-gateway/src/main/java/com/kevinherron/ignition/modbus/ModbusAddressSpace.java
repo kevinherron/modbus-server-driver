@@ -54,7 +54,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   public ModbusAddressSpace(ModbusServerDevice device) {
     this.device = device;
 
-    filter = new ModbusAddressFilter();
+    filter = new ModbusAddressFilter(device.getName());
 
     subscriptionModel = new SubscriptionModel(device.deviceContext.getServer(), this);
   }
@@ -519,7 +519,13 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
   }
 
-  private static class ModbusAddressFilter extends SimpleAddressSpaceFilter {
+  private class ModbusAddressFilter extends SimpleAddressSpaceFilter {
+
+    private final String deviceName;
+
+    private ModbusAddressFilter(String deviceName) {
+      this.deviceName = deviceName;
+    }
 
     @Override
     protected boolean filterNode(NodeId nodeId) {
@@ -531,9 +537,12 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       return checkAddress(nodeId);
     }
 
-    private static boolean checkAddress(NodeId nodeId) {
-      // TODO strip the leading "[DeviceName]" prefix from id
+    private boolean checkAddress(NodeId nodeId) {
       String id = nodeId.getIdentifier().toString();
+      // remove the leading "[DeviceName]" prefix
+      id = id.substring(deviceName.length() + 2);
+
+      logger.info("checking {}", id);
       try {
         ModbusAddressParser.parse(id);
         return true;

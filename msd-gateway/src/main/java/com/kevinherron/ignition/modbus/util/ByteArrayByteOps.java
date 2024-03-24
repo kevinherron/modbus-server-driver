@@ -1,6 +1,6 @@
 package com.kevinherron.ignition.modbus.util;
 
-public class ByteArrayByteOps extends AbstractByteOps<byte[]> {
+public final class ByteArrayByteOps extends AbstractByteOps<byte[]> {
 
   public static final ByteArrayByteOps BIG_ENDIAN =
       new ByteArrayByteOps(new OrderedOps.BigEndianOps());

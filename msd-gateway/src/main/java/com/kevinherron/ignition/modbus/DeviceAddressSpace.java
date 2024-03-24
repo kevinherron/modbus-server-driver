@@ -2,7 +2,6 @@ package com.kevinherron.ignition.modbus;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
@@ -11,18 +10,31 @@ import org.eclipse.milo.opcua.sdk.server.api.DataItem;
 import org.eclipse.milo.opcua.sdk.server.api.ManagedAddressSpaceFragmentWithLifecycle;
 import org.eclipse.milo.opcua.sdk.server.api.MonitoredItem;
 import org.eclipse.milo.opcua.sdk.server.api.SimpleAddressSpaceFilter;
+import org.eclipse.milo.opcua.sdk.server.nodes.AttributeContext;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaFolderNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaServerNode;
 import org.eclipse.milo.opcua.sdk.server.util.SubscriptionModel;
+import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
+import org.eclipse.milo.opcua.stack.core.StatusCodes;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
+import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
+import org.eclipse.milo.opcua.stack.core.types.enumerated.TimestampsToReturn;
+import org.eclipse.milo.opcua.stack.core.types.structured.ReadValueId;
+import org.eclipse.milo.opcua.stack.core.types.structured.ViewDescription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle {
 
+  private final Logger logger = LoggerFactory.getLogger(getClass());
+
   private final Pattern areaFolderPattern;
 
-  private final AddressSpaceFilter filter =
-      SimpleAddressSpaceFilter.create(getNodeManager()::containsNode);
+  private final AddressSpaceFilter filter;
 
   private final ModbusServerDevice device;
   private final SubscriptionModel subscriptionModel;
@@ -32,8 +44,22 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
 
     this.device = device;
 
-    areaFolderPattern = Pattern.compile(
-        "[%s]".formatted(device.deviceContext.getName()) + "_(C|DI|HR|IR)(\\d+)_");
+    areaFolderPattern = Pattern.compile("_(C|DI|HR|IR)(\\d+)_");
+
+    filter = SimpleAddressSpaceFilter.create(nodeId -> {
+      logger.info("filtering: {}", nodeId);
+
+      if (getNodeManager().containsNode(nodeId)) {
+        return true;
+      } else {
+        String id = nodeId.getIdentifier().toString();
+        id = id.substring(device.deviceContext.getName().length() + 2);
+        return switch (id) {
+          case "Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters" -> true;
+          default -> areaFolderPattern.matcher(id).matches();
+        };
+      }
+    });
 
     subscriptionModel = new SubscriptionModel(server, this);
     getLifecycleManager().addLifecycle(subscriptionModel);
@@ -47,26 +73,90 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
   }
 
   @Override
-  public void browse(BrowseContext context, NodeId nodeId) {
+  public void browse(BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
     if (nodeId.equals(device.deviceContext.nodeId("Coils"))) {
-      context.success(createReferences(nodeId, "_C%d_"));
+      context.success(createReferences(nodeId, "_C%05d_"));
     } else if (nodeId.equals(device.deviceContext.nodeId("DiscreteInputs"))) {
-      context.success(createReferences(nodeId, "_DI%d_"));
+      context.success(createReferences(nodeId, "_DI%05d_"));
     } else if (nodeId.equals(device.deviceContext.nodeId("HoldingRegisters"))) {
-      context.success(createReferences(nodeId, "_HR%d_"));
+      context.success(createReferences(nodeId, "_HR%05d_"));
     } else if (nodeId.equals(device.deviceContext.nodeId("InputRegisters"))) {
-      context.success(createReferences(nodeId, "_IR%d_"));
+      context.success(createReferences(nodeId, "_IR%05d_"));
     } else {
       String id = nodeId.getIdentifier().toString();
-      Matcher matcher = areaFolderPattern.matcher(id);
-      if (matcher.matches()) {
-        String area = matcher.group(1);
-        int address = Integer.parseInt(matcher.group(2));
-        // TODO create a reference to each datatype variation for the area/address
+      id = id.substring(device.deviceContext.getName().length() + 2);
+
+      if (areaFolderPattern.matcher(id).matches()) {
+        context.success(List.of());
       } else {
-        super.browse(context, nodeId);
+        logger.info("Browsing super with: {}", nodeId);
+        super.browse(context, viewDescription, nodeId);
       }
     }
+  }
+
+  @Override
+  public void read(ReadContext context, Double maxAge, TimestampsToReturn timestamps,
+      List<ReadValueId> readValueIds) {
+
+    List<DataValue> results = new ArrayList<>();
+
+    for (ReadValueId readValueId : readValueIds) {
+      UaServerNode node = getNodeManager().get(readValueId.getNodeId());
+
+      if (node != null) {
+        DataValue value = node.readAttribute(
+            new AttributeContext(context),
+            readValueId.getAttributeId(),
+            timestamps,
+            readValueId.getIndexRange(),
+            readValueId.getDataEncoding()
+        );
+        results.add(value);
+      } else {
+        String id = readValueId.getNodeId().getIdentifier().toString();
+        id = id.substring(device.deviceContext.getName().length() + 2);
+
+        switch (id) {
+          case "Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters" -> {
+            Variant variant = readAttribute(readValueId.getNodeId(),
+                AttributeId.from(readValueId.getAttributeId()).orElseThrow());
+            results.add(new DataValue(variant));
+          }
+          default -> {
+            if (areaFolderPattern.matcher(id).matches()) {
+              Variant variant = readAttribute(readValueId.getNodeId(),
+                  AttributeId.from(readValueId.getAttributeId()).orElseThrow());
+              results.add(new DataValue(variant));
+            } else {
+              results.add(new DataValue(StatusCodes.Bad_NodeIdUnknown));
+            }
+          }
+        }
+      }
+    }
+
+    context.success(results);
+  }
+
+  private Variant readAttribute(NodeId nodeId, AttributeId attributeId) {
+    Object o = switch (attributeId) {
+      case NodeId -> nodeId;
+      case NodeClass -> NodeClass.Object;
+      case BrowseName -> {
+        String id = nodeId.getIdentifier().toString();
+        String addr = id.substring(device.getName().length() + 2);
+        yield device.deviceContext.qualifiedName(addr);
+      }
+      case DisplayName, Description -> {
+        String id = nodeId.getIdentifier().toString();
+        String addr = id.substring(device.getName().length() + 2);
+        yield LocalizedText.english(addr);
+      }
+      default -> null;
+    };
+
+    return o == null ? Variant.NULL_VALUE : new Variant(o);
   }
 
   @Override
@@ -93,7 +183,7 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
     // create a folder node for our configured device
     var deviceNode = new UaFolderNode(
         getNodeContext(),
-        device.deviceContext.nodeId(device.deviceContext.getName()),
+        device.deviceContext.nodeId(""),
         device.deviceContext.qualifiedName(String.format("[%s]", device.deviceContext.getName())),
         new LocalizedText(String.format("[%s]", device.deviceContext.getName()))
     );
@@ -169,7 +259,7 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
 
   private List<Reference> createReferences(NodeId nodeId, String formatString) {
     var references = new ArrayList<Reference>();
-    for (int i = 0; i < 9999; i++) {
+    for (int i = 0; i < 10_000; i++) {
       NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
       references.add(new Reference(
           nodeId,

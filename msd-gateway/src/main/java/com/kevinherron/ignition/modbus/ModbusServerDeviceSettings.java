@@ -1,10 +1,19 @@
 package com.kevinherron.ignition.modbus;
 
-import com.inductiveautomation.ignition.gateway.localdb.persistence.*;
+import com.inductiveautomation.ignition.gateway.localdb.persistence.IntField;
+import com.inductiveautomation.ignition.gateway.localdb.persistence.LongField;
+import com.inductiveautomation.ignition.gateway.localdb.persistence.PersistentRecord;
+import com.inductiveautomation.ignition.gateway.localdb.persistence.RecordMeta;
+import com.inductiveautomation.ignition.gateway.localdb.persistence.ReferenceField;
+import com.inductiveautomation.ignition.gateway.localdb.persistence.StringField;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
+import java.io.Serial;
 import simpleorm.dataset.SFieldFlags;
 
 public class ModbusServerDeviceSettings extends PersistentRecord {
+
+  @Serial
+  private static final long serialVersionUID = 1L;
 
   public static final RecordMeta<ModbusServerDeviceSettings> META =
       new RecordMeta<>(ModbusServerDeviceSettings.class, "ModbusServerDeviceSettings");

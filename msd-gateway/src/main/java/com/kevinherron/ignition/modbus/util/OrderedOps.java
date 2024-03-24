@@ -3,6 +3,10 @@ package com.kevinherron.ignition.modbus.util;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+/**
+ * Operations that span multiple bytes/words that need to be aware of the underlying byte/word
+ * order.
+ */
 public interface OrderedOps {
 
   short getShort(Function<Integer, Integer> getByte);
@@ -17,7 +21,7 @@ public interface OrderedOps {
 
   void setLong(long value, BiConsumer<Integer, Integer> setByte);
 
-  class BigEndianOps implements OrderedOps {
+  final class BigEndianOps implements OrderedOps {
 
     @Override
     public short getShort(Function<Integer, Integer> getByte) {
@@ -76,7 +80,7 @@ public interface OrderedOps {
 
   }
 
-  class LittleEndianOps implements OrderedOps {
+  final class LittleEndianOps implements OrderedOps {
 
     @Override
     public short getShort(Function<Integer, Integer> getByte) {
@@ -135,7 +139,8 @@ public interface OrderedOps {
 
   }
 
-  class BigEndianWordSwappedOps implements OrderedOps {
+  final class BigEndianWordSwappedOps implements OrderedOps {
+
     @Override
     public short getShort(Function<Integer, Integer> getByte) {
       int b0 = getByte.apply(0);
@@ -193,7 +198,7 @@ public interface OrderedOps {
 
   }
 
-  class LittleEndianWordSwappedOps implements OrderedOps {
+  final class LittleEndianWordSwappedOps implements OrderedOps {
 
     @Override
     public short getShort(Function<Integer, Integer> getByte) {

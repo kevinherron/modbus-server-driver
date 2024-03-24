@@ -4,6 +4,8 @@ public interface ByteOps<T> {
 
   boolean getBoolean(T bytes, int index);
 
+  byte getByte(T bytes, int index);
+
   short getShort(T bytes, int index);
 
   int getInt(T bytes, int index);
@@ -15,6 +17,8 @@ public interface ByteOps<T> {
   double getDouble(T bytes, int index);
 
   void setBoolean(T bytes, int index, boolean value);
+
+  void setByte(T bytes, int index, byte value);
 
   void setShort(T bytes, int index, short value);
 
