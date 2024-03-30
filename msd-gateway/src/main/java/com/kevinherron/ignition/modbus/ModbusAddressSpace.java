@@ -157,7 +157,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       case COILS: {
         device.services.coilLock.readLock().lock();
         try {
-          boolean b = device.services.coilMap.get(address.getOffset());
+          boolean b = device.services.coilMap.getOrDefault(address.getOffset(), false);
           yield new Variant(b);
         } finally {
           device.services.coilLock.readLock().unlock();
@@ -166,7 +166,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       case DISCRETE_INPUTS: {
         device.services.discreteInputLock.readLock().lock();
         try {
-          boolean b = device.services.discreteInputMap.get(address.getOffset());
+          boolean b = device.services.discreteInputMap.getOrDefault(address.getOffset(), false);
           yield new Variant(b);
         } finally {
           device.services.discreteInputLock.readLock().unlock();

@@ -2,6 +2,7 @@ package com.kevinherron.ignition.modbus;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
@@ -28,26 +29,26 @@ import org.eclipse.milo.opcua.stack.core.types.structured.ViewDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle {
+public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle {
 
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
-  private final Pattern areaFolderPattern;
+  private final Pattern enumeratedAreaPattern = Pattern.compile("_(C|DI|HR|IR)(\\d+)_");
 
   private final AddressSpaceFilter filter;
 
   private final ModbusServerDevice device;
   private final SubscriptionModel subscriptionModel;
 
-  public DeviceAddressSpace(OpcUaServer server, ModbusServerDevice device) {
+  public BrowsableAddressSpace(OpcUaServer server, ModbusServerDevice device) {
     super(server, device);
 
     this.device = device;
 
-    areaFolderPattern = Pattern.compile("_(C|DI|HR|IR)(\\d+)_");
-
     filter = SimpleAddressSpaceFilter.create(nodeId -> {
-      logger.info("filtering: {}", nodeId);
+      if (logger.isDebugEnabled()) {
+        logger.debug("filtering: {}", nodeId);
+      }
 
       if (getNodeManager().containsNode(nodeId)) {
         return true;
@@ -56,7 +57,7 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
         id = id.substring(device.deviceContext.getName().length() + 2);
         return switch (id) {
           case "Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters" -> true;
-          default -> areaFolderPattern.matcher(id).matches();
+          default -> enumeratedAreaPattern.matcher(id).matches();
         };
       }
     });
@@ -86,13 +87,51 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
       String id = nodeId.getIdentifier().toString();
       id = id.substring(device.deviceContext.getName().length() + 2);
 
-      if (areaFolderPattern.matcher(id).matches()) {
-        context.success(List.of());
+      Matcher matcher = enumeratedAreaPattern.matcher(id);
+      if (matcher.matches()) {
+        String area = matcher.group(1);
+        int address = Integer.parseInt(matcher.group(2));
+        context.success(createAddressReferences(nodeId, area, address));
       } else {
-        logger.info("Browsing super with: {}", nodeId);
+        if (logger.isDebugEnabled()) {
+          logger.debug("Browsing super with: {}", nodeId);
+        }
         super.browse(context, viewDescription, nodeId);
       }
     }
+  }
+
+  private List<Reference> createAddressReferences(NodeId parentNodeId, String area, int address) {
+    var references = new ArrayList<Reference>();
+
+    switch (area) {
+      case "C", "DI" -> references.add(new Reference(
+          parentNodeId,
+          Identifiers.HasComponent,
+          device.deviceContext.nodeId(area + address).expanded(),
+          Reference.Direction.FORWARD
+      ));
+
+      case "HR", "IR" -> {
+        List<String> dataTypes =
+            List.of("int16", "uint16", "int32", "uint32", "int64", "uint64", "float", "double");
+
+        for (String dataType : dataTypes) {
+          NodeId targetNodeId = device.deviceContext.nodeId(
+              "%s<%s>%d".formatted(area, dataType, address)
+          );
+
+          references.add(new Reference(
+              parentNodeId,
+              Identifiers.HasComponent,
+              targetNodeId.expanded(),
+              Reference.Direction.FORWARD
+          ));
+        }
+      }
+    }
+
+    return references;
   }
 
   @Override
@@ -124,7 +163,7 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
             results.add(new DataValue(variant));
           }
           default -> {
-            if (areaFolderPattern.matcher(id).matches()) {
+            if (enumeratedAreaPattern.matcher(id).matches()) {
               Variant variant = readAttribute(readValueId.getNodeId(),
                   AttributeId.from(readValueId.getAttributeId()).orElseThrow());
               results.add(new DataValue(variant));
@@ -259,7 +298,7 @@ public class DeviceAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle
 
   private List<Reference> createReferences(NodeId nodeId, String formatString) {
     var references = new ArrayList<Reference>();
-    for (int i = 0; i < 10_000; i++) {
+    for (int i = 0; i < 100; i++) {
       NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
       references.add(new Reference(
           nodeId,

@@ -22,7 +22,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
 
   final ModbusServicesImpl services = new ModbusServicesImpl();
 
-  private DeviceAddressSpace deviceAddressSpace;
+  private BrowsableAddressSpace browsableAddressSpace;
   private ModbusAddressSpace modbusAddressSpace;
 
   final DeviceContext deviceContext;
@@ -79,8 +79,8 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
           modbusServerSettings.getPort()
       );
 
-      deviceAddressSpace = new DeviceAddressSpace(deviceContext.getServer(), this);
-      deviceAddressSpace.startup();
+      browsableAddressSpace = new BrowsableAddressSpace(deviceContext.getServer(), this);
+      browsableAddressSpace.startup();
 
       modbusAddressSpace = new ModbusAddressSpace(this);
       modbusAddressSpace.startup();
@@ -98,8 +98,8 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
 
   @Override
   public void shutdown() {
-    if (deviceAddressSpace != null) {
-      deviceAddressSpace.shutdown();
+    if (browsableAddressSpace != null) {
+      browsableAddressSpace.shutdown();
     }
     if (modbusAddressSpace != null) {
       modbusAddressSpace.shutdown();
