@@ -217,12 +217,12 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       case NodeClass -> NodeClass.Variable;
       case BrowseName -> {
         String id = nodeId.getIdentifier().toString();
-        String addr = id.substring(id.indexOf("[%s]".formatted(device.getName())));
+        String addr = id.substring(device.getName().length() + 2);
         yield device.deviceContext.qualifiedName(addr);
       }
       case DisplayName, Description -> {
         String id = nodeId.getIdentifier().toString();
-        String addr = id.substring(id.indexOf("[%s]".formatted(device.getName())));
+        String addr = id.substring(device.getName().length() + 2);
         yield LocalizedText.english(addr);
       }
       case WriteMask, UserWriteMask -> UInteger.valueOf(0);

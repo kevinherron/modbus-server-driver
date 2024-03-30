@@ -76,13 +76,31 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
   @Override
   public void browse(BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
     if (nodeId.equals(device.deviceContext.nodeId("Coils"))) {
-      context.success(createReferences(nodeId, "_C%05d_"));
+      var references = new ArrayList<Reference>();
+      for (int i = 0; i < 100; i++) {
+        references.add(new Reference(
+            nodeId,
+            Identifiers.HasComponent,
+            device.deviceContext.nodeId("C" + i).expanded(),
+            Reference.Direction.FORWARD
+        ));
+      }
+      context.success(references);
     } else if (nodeId.equals(device.deviceContext.nodeId("DiscreteInputs"))) {
-      context.success(createReferences(nodeId, "_DI%05d_"));
+      var references = new ArrayList<Reference>();
+      for (int i = 0; i < 100; i++) {
+        references.add(new Reference(
+            nodeId,
+            Identifiers.HasComponent,
+            device.deviceContext.nodeId("DI" + i).expanded(),
+            Reference.Direction.FORWARD
+        ));
+      }
+      context.success(references);
     } else if (nodeId.equals(device.deviceContext.nodeId("HoldingRegisters"))) {
-      context.success(createReferences(nodeId, "_HR%05d_"));
+      context.success(createRegisterFolderReferences(nodeId, "_HR%d_"));
     } else if (nodeId.equals(device.deviceContext.nodeId("InputRegisters"))) {
-      context.success(createReferences(nodeId, "_IR%05d_"));
+      context.success(createRegisterFolderReferences(nodeId, "_IR%d_"));
     } else {
       String id = nodeId.getIdentifier().toString();
       id = id.substring(device.deviceContext.getName().length() + 2);
@@ -91,7 +109,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
       if (matcher.matches()) {
         String area = matcher.group(1);
         int address = Integer.parseInt(matcher.group(2));
-        context.success(createAddressReferences(nodeId, area, address));
+        context.success(createRegisterAddressReferences(nodeId, area, address));
       } else {
         if (logger.isDebugEnabled()) {
           logger.debug("Browsing super with: {}", nodeId);
@@ -101,17 +119,29 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     }
   }
 
-  private List<Reference> createAddressReferences(NodeId parentNodeId, String area, int address) {
+  private List<Reference> createRegisterFolderReferences(NodeId nodeId, String formatString) {
+    var references = new ArrayList<Reference>();
+    for (int i = 0; i < 100; i++) {
+      NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
+      references.add(new Reference(
+          nodeId,
+          Identifiers.HasComponent,
+          childNodeId.expanded(),
+          Reference.Direction.FORWARD
+      ));
+    }
+    return references;
+  }
+
+  private List<Reference> createRegisterAddressReferences(
+      NodeId parentNodeId,
+      String area,
+      int address
+  ) {
+
     var references = new ArrayList<Reference>();
 
     switch (area) {
-      case "C", "DI" -> references.add(new Reference(
-          parentNodeId,
-          Identifiers.HasComponent,
-          device.deviceContext.nodeId(area + address).expanded(),
-          Reference.Direction.FORWARD
-      ));
-
       case "HR", "IR" -> {
         List<String> dataTypes =
             List.of("int16", "uint16", "int32", "uint32", "int64", "uint64", "float", "double");
@@ -185,11 +215,13 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
       case BrowseName -> {
         String id = nodeId.getIdentifier().toString();
         String addr = id.substring(device.getName().length() + 2);
+        addr = addr.replace("_", "");
         yield device.deviceContext.qualifiedName(addr);
       }
       case DisplayName, Description -> {
         String id = nodeId.getIdentifier().toString();
         String addr = id.substring(device.getName().length() + 2);
+        addr = addr.replace("_", "");
         yield LocalizedText.english(addr);
       }
       default -> null;
@@ -294,20 +326,6 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     getNodeManager().addNode(inputRegistersNode);
 
     deviceNode.addOrganizes(inputRegistersNode);
-  }
-
-  private List<Reference> createReferences(NodeId nodeId, String formatString) {
-    var references = new ArrayList<Reference>();
-    for (int i = 0; i < 100; i++) {
-      NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
-      references.add(new Reference(
-          nodeId,
-          Identifiers.HasComponent,
-          childNodeId.expanded(),
-          Reference.Direction.FORWARD
-      ));
-    }
-    return references;
   }
 
 }
