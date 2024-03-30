@@ -171,13 +171,13 @@ class ModbusServicesImpl implements ModbusServices {
       byte[] values = request.values();
 
       for (int i = 0; i < quantity; i++) {
-        byte b0 = values[i * 2];
-        byte b1 = values[i * 2 + 1];
+        byte high = values[i * 2];
+        byte low = values[i * 2 + 1];
 
-        if (b0 == 0 && b1 == 0) {
+        if (high == 0 && low == 0) {
           holdingRegisterMap.remove(address + i);
         } else {
-          byte[] value = new byte[]{b0, b1};
+          byte[] value = new byte[]{high, low};
           holdingRegisterMap.put(address + i, value);
         }
       }
@@ -202,9 +202,9 @@ class ModbusServicesImpl implements ModbusServices {
       if (value == 0) {
         holdingRegisterMap.remove(address);
       } else {
-        byte b0 = (byte) ((value >> 8) & 0xFF);
-        byte b1 = (byte) (value & 0xFF);
-        byte[] bs = new byte[]{b0, b1};
+        byte high = (byte) ((value >> 8) & 0xFF);
+        byte low = (byte) (value & 0xFF);
+        byte[] bs = new byte[]{high, low};
         holdingRegisterMap.put(address, bs);
       }
 
@@ -232,10 +232,14 @@ class ModbusServicesImpl implements ModbusServices {
       int currentValue = (value[0] << 8) | (value[1] & 0xFF);
       int result = (currentValue & andMask) | (orMask & ~andMask);
 
-      byte b0 = (byte) ((result >> 8) & 0xFF);
-      byte b1 = (byte) (result & 0xFF);
-      byte[] bs = new byte[]{b0, b1};
-      holdingRegisterMap.put(address, bs);
+      if (result == 0) {
+        holdingRegisterMap.remove(address);
+      } else {
+        byte high = (byte) ((result >> 8) & 0xFF);
+        byte low = (byte) (result & 0xFF);
+        byte[] bs = new byte[]{high, low};
+        holdingRegisterMap.put(address, bs);
+      }
 
       return new MaskWriteRegisterResponse(request.address(), request.andMask(), request.orMask());
     } finally {
