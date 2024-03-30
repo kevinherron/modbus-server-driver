@@ -70,6 +70,10 @@ public class ModbusServerDeviceSettings extends PersistentRecord {
     return getInt(PORT);
   }
 
+  public boolean getPersistData() {
+    return getBoolean(PERSIST_DATA);
+  }
+
   public String getCoilBrowseRanges() {
     return getString(COIL_BROWSE_RANGES);
   }

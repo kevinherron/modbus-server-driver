@@ -6,6 +6,7 @@ import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrder;
 import com.kevinherron.ignition.modbus.address.DataTypeModifier.WordOrderModifier;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -59,6 +60,9 @@ public class ModbusAddressParser {
     ModbusDataType dataType = parseDataType(area, matcher.group(4))
         .orElseThrow(() -> new Exception("invalid DataType: " + matcher.group(4)));
 
+    List<Integer> dimensions = parseArrayDimensions(matcher.group(5))
+        .orElseThrow(() -> new Exception("invalid dimensions: " + matcher.group(5)));
+
     Set<DataTypeModifier> dataTypeModifiers = parseDataTypeModifiers(matcher.group(6))
         .orElseThrow(() -> new Exception("invalid modifiers: " + matcher.group(6)));
 
@@ -69,8 +73,12 @@ public class ModbusAddressParser {
       dataType = new ModbusDataType.Bit(dataType, bit);
     }
 
-    // TODO scalar vs array address
-    return new ModbusAddress.ScalarAddress(unitId, area, offset, dataType, dataTypeModifiers);
+    if (dimensions.isEmpty()) {
+      return new ModbusAddress.ScalarAddress(unitId, area, offset, dataType, dataTypeModifiers);
+    } else {
+      // TODO arrays
+      throw new Exception("array address not implemented");
+    }
   }
 
   private static @Nullable UByte parseUnitId(String unitId) throws Exception {
@@ -130,6 +138,14 @@ public class ModbusAddressParser {
     }
 
     return Optional.ofNullable(mdt);
+  }
+
+  private static Optional<List<Integer>> parseArrayDimensions(String dimensions) {
+    if (dimensions == null || dimensions.isEmpty()) {
+      return Optional.of(List.of());
+    }
+    // TODO
+    return Optional.empty();
   }
 
   private static Optional<Set<DataTypeModifier>> parseDataTypeModifiers(String modifiers) {
