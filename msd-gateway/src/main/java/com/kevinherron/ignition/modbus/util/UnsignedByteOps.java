@@ -29,34 +29,90 @@ public final class UnsignedByteOps<T> implements ByteOps<T> {
     this.delegate = delegate;
   }
 
+  /**
+   * Get the {@link UByte} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to get the value from.
+   * @param index the index into {@code bytes} to get the value at.
+   * @return the {@link UByte} value at the given {@code index}.
+   */
   public UByte getUByte(T bytes, int index) {
     return UByte.valueOf(getByte(bytes, index));
   }
 
+  /**
+   * Get the {@link UShort} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to get the value from.
+   * @param index the index into {@code bytes} to get the value at.
+   * @return the {@link UShort} value at the given {@code index}.
+   */
   public UShort getUShort(T bytes, int index) {
     return UShort.valueOf(getShort(bytes, index));
   }
 
+  /**
+   * Get the {@link UInteger} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to get the value from.
+   * @param index the index into {@code bytes} to get the value at.
+   * @return the {@link UInteger} value at the given {@code index}.
+   */
   public UInteger getUInt(T bytes, int index) {
     return UInteger.valueOf(getInt(bytes, index));
   }
 
+  /**
+   * Get the {@link ULong} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to get the value from.
+   * @param index the index into {@code bytes} to get the value at.
+   * @return the {@link ULong} value at the given {@code index}.
+   */
   public ULong getULong(T bytes, int index) {
     return ULong.valueOf(getLong(bytes, index));
   }
 
+  /**
+   * Set the {@link UByte} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to set the value in.
+   * @param index the index into {@code bytes} to set the value at.
+   * @param value the {@link UByte} value to set.
+   */
   public void setUByte(T bytes, int index, UByte value) {
     setByte(bytes, index, value.byteValue());
   }
 
+  /**
+   * Set the {@link UShort} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to set the value in.
+   * @param index the index into {@code bytes} to set the value at.
+   * @param value the {@link UShort} value to set.
+   */
   public void setUShort(T bytes, int index, UShort value) {
     setShort(bytes, index, value.shortValue());
   }
 
+  /**
+   * Set the {@link UInteger} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to set the value in.
+   * @param index the index into {@code bytes} to set the value at.
+   * @param value the {@link UInteger} value to set.
+   */
   public void setUInt(T bytes, int index, UInteger value) {
     setInt(bytes, index, value.intValue());
   }
 
+  /**
+   * Set the {@link ULong} value at the given {@code index} in {@code bytes}.
+   *
+   * @param bytes the bytes to set the value in.
+   * @param index the index into {@code bytes} to set the value at.
+   * @param value the {@link ULong} value to set.
+   */
   public void setULong(T bytes, int index, ULong value) {
     setLong(bytes, index, value.longValue());
   }

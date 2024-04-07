@@ -9,16 +9,52 @@ import java.util.function.Function;
  */
 public interface OrderedOps {
 
+  /**
+   * Assemble a short value using the given {@code getByte} function.
+   *
+   * @param getByte a function that takes an index and returns a byte value.
+   * @return the assembled short value.
+   */
   short getShort(Function<Integer, Integer> getByte);
 
+  /**
+   * Assemble an int value using the given {@code getByte} function.
+   *
+   * @param getByte a function that takes an index and returns a byte value.
+   * @return the assembled int value.
+   */
   int getInt(Function<Integer, Integer> getByte);
 
+  /**
+   * Assemble a long value using the given {@code getByte} function.
+   *
+   * @param getByte a function that takes an index and returns a byte value.
+   * @return the assembled long value.
+   */
   long getLong(Function<Integer, Integer> getByte);
 
+  /**
+   * Set the bytes of a short value using the given {@code setByte} function.
+   *
+   * @param value the short value to set.
+   * @param setByte a function that takes an index and a byte value to set.
+   */
   void setShort(short value, BiConsumer<Integer, Integer> setByte);
 
+  /**
+   * Set the bytes of an int value using the given {@code setByte} function.
+   *
+   * @param value the int value to set.
+   * @param setByte a function that takes an index and a byte value to set.
+   */
   void setInt(int value, BiConsumer<Integer, Integer> setByte);
 
+  /**
+   * Set the bytes of a long value using the given {@code setByte} function.
+   *
+   * @param value the long value to set.
+   * @param setByte a function that takes an index and a byte value to set.
+   */
   void setLong(long value, BiConsumer<Integer, Integer> setByte);
 
   final class BigEndianOps implements OrderedOps {

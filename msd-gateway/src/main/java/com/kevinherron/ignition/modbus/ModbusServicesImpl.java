@@ -76,27 +76,6 @@ class ModbusServicesImpl implements ModbusServices {
     }
   }
 
-  private static byte[] readBits(int address, int quantity, Map<Integer, Boolean> bitMap) {
-    var bytes = new byte[(quantity + 7) / 8];
-
-    for (int i = 0; i < quantity; i++) {
-      int byteIndex = i / 8;
-      int bitIndex = i % 8;
-
-      boolean value = bitMap.getOrDefault(address + i, false);
-
-      int b = bytes[byteIndex];
-      if (value) {
-        b |= (1 << bitIndex);
-      } else {
-        b &= ~(1 << bitIndex);
-      }
-      bytes[byteIndex] = (byte) (b & 0xFF);
-    }
-
-    return bytes;
-  }
-
   @Override
   public ReadHoldingRegistersResponse readHoldingRegisters(
       ModbusRequestContext context,
@@ -134,26 +113,6 @@ class ModbusServicesImpl implements ModbusServices {
       return new ReadInputRegistersResponse(registers);
     } finally {
       inputRegisterLock.readLock().unlock();
-    }
-  }
-
-  static byte[] readRegisters(Map<Integer, byte[]> registerMap, int address, int quantity) {
-    var registers = new byte[quantity * 2];
-
-    for (int i = 0; i < quantity; i++) {
-      byte[] value = registerMap.getOrDefault(address + i, new byte[2]);
-
-      registers[i * 2] = value[0];
-      registers[i * 2 + 1] = value[1];
-    }
-
-    return registers;
-  }
-
-  static void writeRegisters(Map<Integer, byte[]> registerMap, int address, byte[] registers) {
-    for (int i = 0; i < registers.length / 2; i++) {
-      byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
-      registerMap.put(address + i, value);
     }
   }
 
@@ -244,6 +203,47 @@ class ModbusServicesImpl implements ModbusServices {
       return new MaskWriteRegisterResponse(request.address(), request.andMask(), request.orMask());
     } finally {
       holdingRegisterLock.writeLock().unlock();
+    }
+  }
+
+  static byte[] readBits(int address, int quantity, Map<Integer, Boolean> bitMap) {
+    var bytes = new byte[(quantity + 7) / 8];
+
+    for (int i = 0; i < quantity; i++) {
+      int byteIndex = i / 8;
+      int bitIndex = i % 8;
+
+      boolean value = bitMap.getOrDefault(address + i, false);
+
+      int b = bytes[byteIndex];
+      if (value) {
+        b |= (1 << bitIndex);
+      } else {
+        b &= ~(1 << bitIndex);
+      }
+      bytes[byteIndex] = (byte) (b & 0xFF);
+    }
+
+    return bytes;
+  }
+
+  static byte[] readRegisters(Map<Integer, byte[]> registerMap, int address, int quantity) {
+    var registers = new byte[quantity * 2];
+
+    for (int i = 0; i < quantity; i++) {
+      byte[] value = registerMap.getOrDefault(address + i, new byte[2]);
+
+      registers[i * 2] = value[0];
+      registers[i * 2 + 1] = value[1];
+    }
+
+    return registers;
+  }
+
+  static void writeRegisters(Map<Integer, byte[]> registerMap, int address, byte[] registers) {
+    for (int i = 0; i < registers.length / 2; i++) {
+      byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
+      registerMap.put(address + i, value);
     }
   }
 
