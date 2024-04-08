@@ -24,17 +24,17 @@ public abstract class AbstractByteOps<T> implements ByteOps<T> {
 
   @Override
   public short getShort(T bytes, int index) {
-    return orderedOps.getShort(idx -> get(bytes, index + idx));
+    return orderedOps.getShort(idx -> get(bytes, idx), index);
   }
 
   @Override
   public int getInt(T bytes, int index) {
-    return orderedOps.getInt(idx -> get(bytes, index + idx));
+    return orderedOps.getInt(idx -> get(bytes, idx), index);
   }
 
   @Override
   public long getLong(T bytes, int index) {
-    return orderedOps.getLong(idx -> get(bytes, index + idx));
+    return orderedOps.getLong(idx -> get(bytes, idx), index);
   }
 
   @Override
@@ -63,17 +63,17 @@ public abstract class AbstractByteOps<T> implements ByteOps<T> {
 
   @Override
   public void setShort(T bytes, int index, short value) {
-    orderedOps.setShort(value, (idx, b) -> set(bytes, index + idx, b));
+    orderedOps.setShort((idx, b) -> set(bytes, idx, b), index, value);
   }
 
   @Override
   public void setInt(T bytes, int index, int value) {
-    orderedOps.setInt(value, (idx, b) -> set(bytes, index + idx, b));
+    orderedOps.setInt((idx, b) -> set(bytes, idx, b), index, value);
   }
 
   @Override
   public void setLong(T bytes, int index, long value) {
-    orderedOps.setLong(value, (idx, b) -> set(bytes, index + idx, b));
+    orderedOps.setLong((idx, b) -> set(bytes, idx, b), index, value);
   }
 
   @Override
