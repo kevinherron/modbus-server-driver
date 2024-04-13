@@ -1,5 +1,8 @@
 package com.kevinherron.ignition.modbus.util;
 
+/**
+ * {@link ByteOps} implementation that operates on byte arrays.
+ */
 public final class ByteArrayByteOps extends AbstractByteOps<byte[]> {
 
   public static final ByteArrayByteOps BIG_ENDIAN =
