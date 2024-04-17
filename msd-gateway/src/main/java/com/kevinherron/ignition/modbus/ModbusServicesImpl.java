@@ -48,7 +48,7 @@ class ModbusServicesImpl implements ModbusServices {
       int address = request.address().intValue();
       int quantity = request.quantity().intValue();
 
-      var coils = readBits(address, quantity, coilMap);
+      byte[] coils = readBits(address, quantity, coilMap);
 
       return new ReadCoilsResponse(coils);
     } finally {
@@ -68,7 +68,7 @@ class ModbusServicesImpl implements ModbusServices {
       int address = request.address().intValue();
       int quantity = request.quantity().intValue();
 
-      var inputs = readBits(address, quantity, discreteInputMap);
+      byte[] inputs = readBits(address, quantity, discreteInputMap);
 
       return new ReadDiscreteInputsResponse(inputs);
     } finally {
