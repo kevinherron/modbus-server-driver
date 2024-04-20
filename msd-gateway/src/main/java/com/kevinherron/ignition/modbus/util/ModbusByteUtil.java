@@ -57,7 +57,7 @@ public final class ModbusByteUtil {
           break;
         }
       }
-      return new String(registerBytes, 0, length);
+      return new String(registerBytes, 0, length, StandardCharsets.UTF_8);
     } else {
       throw new UaException(StatusCodes.Bad_InternalError, "dataType: " + dataType);
     }
