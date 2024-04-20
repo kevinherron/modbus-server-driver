@@ -1,10 +1,9 @@
 package com.kevinherron.ignition.modbus.util;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Set;
-
 import com.kevinherron.ignition.modbus.address.DataTypeModifier;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
@@ -126,10 +125,11 @@ public final class ModbusByteUtil {
       } else {
         throw new UaException(StatusCodes.Bad_TypeMismatch);
       }
-    } else if (dataType instanceof ModbusDataType.String d) {
+    } else if (dataType instanceof ModbusDataType.String) {
       if (value instanceof String v) {
         byte[] stringBytes = v.getBytes(StandardCharsets.UTF_8);
-        System.arraycopy(stringBytes, 0, valueBytes, 0, Math.min(stringBytes.length, valueBytes.length));
+        int length = Math.min(stringBytes.length, valueBytes.length);
+        System.arraycopy(stringBytes, 0, valueBytes, 0, length);
       } else {
         throw new UaException(StatusCodes.Bad_TypeMismatch);
       }
