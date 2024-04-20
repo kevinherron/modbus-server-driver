@@ -75,46 +75,39 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
 
   @Override
   public void browse(BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
-    if (nodeId.equals(device.deviceContext.nodeId("Coils"))) {
-      var references = new ArrayList<Reference>();
-      for (int i = 0; i < 100; i++) {
-        references.add(new Reference(
-            nodeId,
-            Identifiers.HasComponent,
-            device.deviceContext.nodeId("C" + i).expanded(),
-            Reference.Direction.FORWARD
-        ));
-      }
-      context.success(references);
-    } else if (nodeId.equals(device.deviceContext.nodeId("DiscreteInputs"))) {
-      var references = new ArrayList<Reference>();
-      for (int i = 0; i < 100; i++) {
-        references.add(new Reference(
-            nodeId,
-            Identifiers.HasComponent,
-            device.deviceContext.nodeId("DI" + i).expanded(),
-            Reference.Direction.FORWARD
-        ));
-      }
-      context.success(references);
-    } else if (nodeId.equals(device.deviceContext.nodeId("HoldingRegisters"))) {
-      context.success(createRegisterFolderReferences(nodeId, "_HR%d_"));
-    } else if (nodeId.equals(device.deviceContext.nodeId("InputRegisters"))) {
-      context.success(createRegisterFolderReferences(nodeId, "_IR%d_"));
-    } else {
-      String id = nodeId.getIdentifier().toString();
-      id = id.substring(device.deviceContext.getName().length() + 2);
+    String id = nodeId.getIdentifier().toString();
+    id = id.substring(device.deviceContext.getName().length() + 2);
 
-      Matcher matcher = enumeratedAreaPattern.matcher(id);
-      if (matcher.matches()) {
-        String area = matcher.group(1);
-        int address = Integer.parseInt(matcher.group(2));
-        context.success(createRegisterAddressReferences(nodeId, area, address));
-      } else {
-        if (logger.isDebugEnabled()) {
-          logger.debug("Browsing super with: {}", nodeId);
+    switch (id) {
+      case "Coils", "DiscreteInputs" -> {
+        String prefix = id.equals("Coils") ? "C" : "DI";
+        var references = new ArrayList<Reference>();
+        for (int i = 0; i < 100; i++) {
+          references.add(new Reference(
+              nodeId,
+              Identifiers.HasComponent,
+              device.deviceContext.nodeId(prefix + i).expanded(),
+              Reference.Direction.FORWARD
+          ));
         }
-        super.browse(context, viewDescription, nodeId);
+        context.success(references);
+      }
+      case "HoldingRegisters", "InputRegisters" -> {
+        String formatString = id.equals("HoldingRegisters") ? "_HR%d_" : "_IR%d_";
+        context.success(createRegisterFolderReferences(nodeId, formatString));
+      }
+      default -> {
+        Matcher matcher = enumeratedAreaPattern.matcher(id);
+        if (matcher.matches()) {
+          String area = matcher.group(1);
+          int address = Integer.parseInt(matcher.group(2));
+          context.success(createRegisterAddressReferences(nodeId, area, address));
+        } else {
+          if (logger.isDebugEnabled()) {
+            logger.debug("Browsing super with: {}", nodeId);
+          }
+          super.browse(context, viewDescription, nodeId);
+        }
       }
     }
   }
