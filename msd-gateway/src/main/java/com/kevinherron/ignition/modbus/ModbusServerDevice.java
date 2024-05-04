@@ -1,8 +1,8 @@
 package com.kevinherron.ignition.modbus;
 
 import com.digitalpetri.modbus.server.ModbusTcpServer;
-import com.digitalpetri.modbus.server.NettyServerTransport;
 import com.digitalpetri.modbus.server.NettyServerTransportConfig;
+import com.digitalpetri.modbus.server.NettyTcpServerTransport;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
@@ -59,7 +59,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
 
   @Override
   public void startup() {
-    var transport = new NettyServerTransport(
+    var transport = new NettyTcpServerTransport(
         NettyServerTransportConfig.create(cfg -> {
           cfg.bindAddress = modbusServerSettings.getBindAddress();
           cfg.port = UShort.valueOf(modbusServerSettings.getPort());
