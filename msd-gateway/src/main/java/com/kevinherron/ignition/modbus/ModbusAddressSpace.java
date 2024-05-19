@@ -180,11 +180,9 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
               address.getOffset(),
               address.getDataType().getRegisterCount()
           );
-          Object value = ModbusByteUtil.getValueForBytes(
-              registerBytes,
-              address.getDataType(),
-              address.getDataTypeModifiers()
-          );
+
+          Object value = ModbusByteUtil.getValueForBytes(registerBytes, address);
+
           yield new Variant(value);
         } finally {
           device.services.holdingRegisterLock.readLock().unlock();
@@ -198,11 +196,9 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
               address.getOffset(),
               address.getDataType().getRegisterCount()
           );
-          Object value = ModbusByteUtil.getValueForBytes(
-              registerBytes,
-              address.getDataType(),
-              address.getDataTypeModifiers()
-          );
+
+          Object value = ModbusByteUtil.getValueForBytes(registerBytes, address);
+
           yield new Variant(value);
         } finally {
           device.services.inputRegisterLock.readLock().unlock();
@@ -351,14 +347,13 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
           writeBitToRegister(address, variant, dataType, device.services.holdingRegisterMap);
         } else {
-          byte[] registerBytes = ModbusByteUtil.getBytesForValue(
-              variant.getValue(),
-              address.getDataType(),
-              address.getDataTypeModifiers()
-          );
+          byte[] registerBytes = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          ModbusServicesImpl.writeRegisters(device.services.holdingRegisterMap, address.getOffset(),
-              registerBytes);
+          ModbusServicesImpl.writeRegisters(
+              device.services.holdingRegisterMap,
+              address.getOffset(),
+              registerBytes
+          );
         }
       }
       case INPUT_REGISTERS -> {
@@ -367,14 +362,13 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
           writeBitToRegister(address, variant, dataType, device.services.inputRegisterMap);
         } else {
-          byte[] registerBytes = ModbusByteUtil.getBytesForValue(
-              variant.getValue(),
-              address.getDataType(),
-              address.getDataTypeModifiers()
-          );
+          byte[] registerBytes = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          ModbusServicesImpl.writeRegisters(device.services.inputRegisterMap, address.getOffset(),
-              registerBytes);
+          ModbusServicesImpl.writeRegisters(
+              device.services.inputRegisterMap,
+              address.getOffset(),
+              registerBytes
+          );
         }
       }
     }
@@ -384,7 +378,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
    * Check that a value is of the correct type for the given ModbusDataType.
    *
    * @param dataType the {@link ModbusDataType}.
-   * @param variant  the {@link Variant} to check.
+   * @param variant the {@link Variant} to check.
    * @throws UaException if the value is {@code null}, or not of the correct type.
    */
   private static void checkDataType(ModbusDataType dataType, Variant variant) throws UaException {

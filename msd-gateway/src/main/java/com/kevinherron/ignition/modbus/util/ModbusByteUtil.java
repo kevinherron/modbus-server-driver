@@ -1,6 +1,7 @@
 package com.kevinherron.ignition.modbus.util;
 
 import com.kevinherron.ignition.modbus.address.DataTypeModifier;
+import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -13,6 +14,14 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
 public final class ModbusByteUtil {
 
   private ModbusByteUtil() {}
+
+  public static Object getValueForBytes(
+      byte[] registerBytes,
+      ModbusAddress address
+  ) throws UaException {
+
+    return getValueForBytes(registerBytes, address.getDataType(), address.getDataTypeModifiers());
+  }
 
   public static Object getValueForBytes(
       byte[] registerBytes,
@@ -61,6 +70,10 @@ public final class ModbusByteUtil {
     } else {
       throw new UaException(StatusCodes.Bad_InternalError, "dataType: " + dataType);
     }
+  }
+
+  public static byte[] getBytesForValue(Object value, ModbusAddress address) throws UaException {
+    return getBytesForValue(value, address.getDataType(), address.getDataTypeModifiers());
   }
 
   public static byte[] getBytesForValue(
