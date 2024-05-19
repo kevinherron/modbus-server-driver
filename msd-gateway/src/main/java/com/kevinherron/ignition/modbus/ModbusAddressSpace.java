@@ -206,8 +206,13 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     };
   }
 
-  private Variant readNonValueAttribute(NodeId nodeId, AttributeId attributeId,
-      ModbusAddress address) throws UaException {
+
+  private Variant readNonValueAttribute(
+      NodeId nodeId,
+      AttributeId attributeId,
+      ModbusAddress address
+  ) throws UaException {
+
     Object o = switch (attributeId) {
       case NodeId -> nodeId;
       case NodeClass -> NodeClass.Variable;
@@ -237,10 +242,10 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
           yield null;
         }
       }
-      case AccessLevel, UserAccessLevel -> switch (address.getArea()) {
-        case COILS, HOLDING_REGISTERS -> AccessLevel.toValue(AccessLevel.READ_WRITE);
-        case DISCRETE_INPUTS, INPUT_REGISTERS -> AccessLevel.toValue(AccessLevel.READ_ONLY);
-      };
+
+      // All areas are Read/Write from the OPC UA side, otherwise nothing would be able to
+      // update IR and DI values!
+      case AccessLevel, UserAccessLevel -> AccessLevel.toValue(AccessLevel.READ_WRITE);
 
       case Value ->
           throw new UaException(StatusCodes.Bad_InternalError, "attributeId: " + attributeId);
