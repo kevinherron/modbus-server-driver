@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 
 public class ModbusServerDevice extends AddressSpaceComposite implements Device {
 
-  private final Logger logger = LoggerFactory.getLogger(getClass());
+  final Logger logger = LoggerFactory.getLogger(getClass());
 
   private ModbusTcpServer server;
   private volatile String status = "";
@@ -60,12 +60,17 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   public void startup() {
     var transport = new NettyTcpServerTransport(
         NettyServerTransportConfig.create(cfg -> {
+          cfg.context = ModbusServerDevice.this;
           cfg.bindAddress = modbusServerSettings.getBindAddress();
           cfg.port = modbusServerSettings.getPort();
         })
     );
 
-    server = ModbusTcpServer.create(transport, services);
+    server = ModbusTcpServer.create(
+        transport,
+        services,
+        cfg -> cfg.context = ModbusServerDevice.this
+    );
 
     try {
       server.start();
