@@ -541,7 +541,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       // remove the leading "[DeviceName]" prefix
       id = id.substring(deviceName.length() + 2);
 
-      logger.info("checking {}", id);
+      logger.trace("checking {}", id);
       try {
         ModbusAddressParser.parse(id);
         return true;
