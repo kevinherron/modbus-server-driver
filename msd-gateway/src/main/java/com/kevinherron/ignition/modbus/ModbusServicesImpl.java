@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import org.joou.UByte;
 
 class ModbusServicesImpl implements ModbusServices {
 
@@ -39,14 +38,14 @@ class ModbusServicesImpl implements ModbusServices {
   @Override
   public ReadCoilsResponse readCoils(
       ModbusRequestContext context,
-      UByte unitId,
+      int unitId,
       ReadCoilsRequest request
   ) {
 
     coilLock.readLock().lock();
     try {
-      int address = request.address().intValue();
-      int quantity = request.quantity().intValue();
+      int address = request.address();
+      int quantity = request.quantity();
 
       byte[] coils = readBits(address, quantity, coilMap);
 
@@ -59,14 +58,14 @@ class ModbusServicesImpl implements ModbusServices {
   @Override
   public ReadDiscreteInputsResponse readDiscreteInputs(
       ModbusRequestContext context,
-      UByte unitId,
+      int unitId,
       ReadDiscreteInputsRequest request
   ) {
 
     discreteInputLock.readLock().lock();
     try {
-      int address = request.address().intValue();
-      int quantity = request.quantity().intValue();
+      int address = request.address();
+      int quantity = request.quantity();
 
       byte[] inputs = readBits(address, quantity, discreteInputMap);
 
@@ -79,14 +78,14 @@ class ModbusServicesImpl implements ModbusServices {
   @Override
   public ReadHoldingRegistersResponse readHoldingRegisters(
       ModbusRequestContext context,
-      UByte unitId,
+      int unitId,
       ReadHoldingRegistersRequest request
   ) {
 
     holdingRegisterLock.readLock().lock();
     try {
-      int address = request.address().intValue();
-      int quantity = request.quantity().intValue();
+      int address = request.address();
+      int quantity = request.quantity();
 
       var registers = readRegisters(holdingRegisterMap, address, quantity);
 
@@ -99,14 +98,14 @@ class ModbusServicesImpl implements ModbusServices {
   @Override
   public ReadInputRegistersResponse readInputRegisters(
       ModbusRequestContext context,
-      UByte unitId,
+      int unitId,
       ReadInputRegistersRequest request
   ) {
 
     inputRegisterLock.readLock().lock();
     try {
-      int address = request.address().intValue();
-      int quantity = request.quantity().intValue();
+      int address = request.address();
+      int quantity = request.quantity();
 
       var registers = readRegisters(inputRegisterMap, address, quantity);
 
@@ -119,14 +118,14 @@ class ModbusServicesImpl implements ModbusServices {
   @Override
   public WriteMultipleRegistersResponse writeMultipleRegisters(
       ModbusRequestContext context,
-      UByte unitId,
+      int unitId,
       WriteMultipleRegistersRequest request
   ) {
 
     holdingRegisterLock.writeLock().lock();
     try {
-      int address = request.address().intValue();
-      int quantity = request.quantity().intValue();
+      int address = request.address();
+      int quantity = request.quantity();
       byte[] values = request.values();
 
       for (int i = 0; i < quantity; i++) {
@@ -149,12 +148,12 @@ class ModbusServicesImpl implements ModbusServices {
   @Override
   public WriteSingleRegisterResponse writeSingleRegister(
       ModbusRequestContext context,
-      UByte unitId,
+      int unitId,
       WriteSingleRegisterRequest request
   ) {
 
-    int address = request.address().intValue();
-    int value = request.value().intValue();
+    int address = request.address();
+    int value = request.value();
 
     holdingRegisterLock.writeLock().lock();
     try {
@@ -176,14 +175,14 @@ class ModbusServicesImpl implements ModbusServices {
   @Override
   public MaskWriteRegisterResponse maskWriteRegister(
       ModbusRequestContext context,
-      UByte unitId,
+      int unitId,
       MaskWriteRegisterRequest request
   ) {
 
     // Result = (Current Contents AND And_Mask) OR (Or_Mask AND (NOT And_Mask))
-    int address = request.address().intValue();
-    int andMask = request.andMask().intValue();
-    int orMask = request.orMask().intValue();
+    int address = request.address();
+    int andMask = request.andMask();
+    int orMask = request.orMask();
 
     holdingRegisterLock.writeLock().lock();
     try {

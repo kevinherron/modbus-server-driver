@@ -9,7 +9,6 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsR
 import java.util.concurrent.ExecutionException;
 import org.eclipse.milo.opcua.sdk.server.api.AddressSpaceComposite;
 import org.jetbrains.annotations.NotNull;
-import org.joou.UShort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +61,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
     var transport = new NettyTcpServerTransport(
         NettyServerTransportConfig.create(cfg -> {
           cfg.bindAddress = modbusServerSettings.getBindAddress();
-          cfg.port = UShort.valueOf(modbusServerSettings.getPort());
+          cfg.port = modbusServerSettings.getPort();
         })
     );
 

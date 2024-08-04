@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
-import org.joou.UByte;
 import org.junit.jupiter.api.Test;
 
 class ModbusAddressParserTest {
@@ -106,7 +105,7 @@ class ModbusAddressParserTest {
   void parseAddressWithUnitId() throws Exception {
     for (int i = 0; i < 256; i++) {
       var address = ModbusAddressParser.parse("%d.HR1".formatted(i));
-      assertEquals(UByte.valueOf(i), address.getUnitId().orElseThrow());
+      assertEquals(i, address.getUnitId().orElseThrow());
       assertEquals(ModbusArea.HOLDING_REGISTERS, address.getArea());
       assertEquals(1, address.getOffset());
       assertInstanceOf(ModbusDataType.Int16.class, address.getDataType());

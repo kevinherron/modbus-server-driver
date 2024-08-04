@@ -16,9 +16,7 @@ public class ModbusServerDeviceType extends DeviceType {
   @Serial
   private static final long serialVersionUID = 1L;
 
-  public static final ModbusServerDeviceType INSTANCE = new ModbusServerDeviceType();
-
-  private ModbusServerDeviceType() {
+  ModbusServerDeviceType() {
     super(
         "com.kevinherron.modbus-server-driver",
         "ModbusServer.ModbusServerDeviceType.Name",

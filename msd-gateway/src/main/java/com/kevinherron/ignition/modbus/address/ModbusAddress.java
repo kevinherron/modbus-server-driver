@@ -3,18 +3,17 @@ package com.kevinherron.ignition.modbus.address;
 import java.util.Optional;
 import java.util.Set;
 import org.jetbrains.annotations.Nullable;
-import org.joou.UByte;
 
 public sealed abstract class ModbusAddress {
 
-  private final @Nullable UByte unitId;
+  private final @Nullable Integer unitId;
   private final ModbusArea area;
   private final int offset;
   private final ModbusDataType dataType;
   private final Set<DataTypeModifier> dataTypeModifiers;
 
   protected ModbusAddress(
-      @Nullable UByte unitId,
+      @Nullable Integer unitId,
       ModbusArea area,
       int offset,
       ModbusDataType dataType,
@@ -28,7 +27,7 @@ public sealed abstract class ModbusAddress {
     this.dataTypeModifiers = Set.copyOf(dataTypeModifiers);
   }
 
-  public Optional<UByte> getUnitId() {
+  public Optional<Integer> getUnitId() {
     return Optional.ofNullable(unitId);
   }
 
@@ -54,7 +53,7 @@ public sealed abstract class ModbusAddress {
     private final int[] dimensions;
 
     public ArrayAddress(
-        @Nullable UByte unitId,
+        @Nullable Integer unitId,
         ModbusArea area,
         int address,
         ModbusDataType dataType,
@@ -76,7 +75,7 @@ public sealed abstract class ModbusAddress {
   public static final class ScalarAddress extends ModbusAddress {
 
     public ScalarAddress(
-        @Nullable UByte unitId,
+        @Nullable Integer unitId,
         ModbusArea area,
         int address,
         ModbusDataType dataType,

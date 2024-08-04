@@ -1,6 +1,5 @@
 package com.kevinherron.ignition.modbus;
 
-import static org.joou.Unsigned.ubyte;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.digitalpetri.modbus.pdu.ReadCoilsRequest;
@@ -35,7 +34,7 @@ class ModbusServicesImplTest {
   private void assertCoilPattern(int address, int pattern) {
     var response = services.readCoils(
         null,
-        ubyte(0),
+        0,
         new ReadCoilsRequest(address, 8)
     );
 

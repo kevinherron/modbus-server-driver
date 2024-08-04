@@ -11,7 +11,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.jetbrains.annotations.Nullable;
-import org.joou.UByte;
 
 public class ModbusAddressParser {
 
@@ -52,7 +51,7 @@ public class ModbusAddressParser {
     // System.out.println("8: " + matcher.group(8));
     // System.out.println("9: " + matcher.group(9));
 
-    UByte unitId = parseUnitId(matcher.group(2));
+    Integer unitId = parseUnitId(matcher.group(2));
 
     ModbusArea area = parseArea(matcher.group(3))
         .orElseThrow(() -> new Exception("invalid area: " + matcher.group(3)));
@@ -81,10 +80,14 @@ public class ModbusAddressParser {
     }
   }
 
-  private static @Nullable UByte parseUnitId(String unitId) throws Exception {
+  private static @Nullable Integer parseUnitId(String unitId) throws Exception {
     if (unitId != null) {
       try {
-        return UByte.valueOf(unitId);
+        int i = Integer.parseInt(unitId);
+        if (i < 0 || i > 255) {
+          throw new Exception("invalid unitId: " + unitId);
+        }
+        return i;
       } catch (NumberFormatException ignored) {
         throw new Exception("invalid unitId: " + unitId);
       }
