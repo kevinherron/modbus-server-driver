@@ -121,4 +121,12 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
     }
   }
 
+  DeviceSettingsRecord getDeviceSettings() {
+    return deviceSettings;
+  }
+
+  ModbusServerDeviceSettings getModbusServerSettings() {
+    return modbusServerSettings;
+  }
+
 }

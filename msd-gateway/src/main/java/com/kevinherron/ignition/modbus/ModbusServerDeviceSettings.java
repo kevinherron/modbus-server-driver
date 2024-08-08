@@ -51,10 +51,10 @@ public class ModbusServerDeviceSettings extends PersistentRecord {
     DEVICE_SETTINGS_ID.getFormMeta().setVisible(false);
 
     PERSIST_DATA.setDefault(true);
-    COIL_BROWSE_RANGES.setDefault("0-100");
-    DISCRETE_INPUT_BROWSE_RANGES.setDefault("0-100");
-    HOLDING_REGISTER_BROWSE_RANGES.setDefault("0-100");
-    INPUT_REGISTER_BROWSE_RANGES.setDefault("0-100");
+    COIL_BROWSE_RANGES.setDefault("0-10");
+    DISCRETE_INPUT_BROWSE_RANGES.setDefault("0-10");
+    HOLDING_REGISTER_BROWSE_RANGES.setDefault("0-10");
+    INPUT_REGISTER_BROWSE_RANGES.setDefault("0-10");
   }
 
   @Override

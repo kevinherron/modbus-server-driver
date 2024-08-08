@@ -79,22 +79,74 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     id = id.substring(device.deviceContext.getName().length() + 2);
 
     switch (id) {
-      case "Coils", "DiscreteInputs" -> {
-        String prefix = id.equals("Coils") ? "C" : "DI";
-        var references = new ArrayList<Reference>();
-        for (int i = 0; i < 100; i++) {
-          references.add(new Reference(
-              nodeId,
-              Identifiers.HasComponent,
-              device.deviceContext.nodeId(prefix + i).expanded(),
-              Reference.Direction.FORWARD
-          ));
+      case "Coils" -> {
+        String coilBrowseRanges = device.getModbusServerSettings().getCoilBrowseRanges();
+
+        if (coilBrowseRanges != null && !coilBrowseRanges.isEmpty()) {
+          var references = new ArrayList<Reference>();
+
+          List<Range> ranges = parseRanges(coilBrowseRanges);
+          for (Range range : ranges) {
+            for (int i = range.start; i <= range.end; i++) {
+              references.add(new Reference(
+                  nodeId,
+                  Identifiers.HasComponent,
+                  device.deviceContext.nodeId("C" + i).expanded(),
+                  Reference.Direction.FORWARD
+              ));
+            }
+          }
+
+          context.success(references);
         }
-        context.success(references);
       }
-      case "HoldingRegisters", "InputRegisters" -> {
-        String formatString = id.equals("HoldingRegisters") ? "_HR%d_" : "_IR%d_";
-        context.success(createRegisterFolderReferences(nodeId, formatString));
+      case "DiscreteInputs" -> {
+        String discreteInputBrowseRanges =
+            device.getModbusServerSettings().getDiscreteInputBrowseRanges();
+
+        if (discreteInputBrowseRanges != null && !discreteInputBrowseRanges.isEmpty()) {
+          var references = new ArrayList<Reference>();
+
+          List<Range> ranges = parseRanges(discreteInputBrowseRanges);
+          for (Range range : ranges) {
+            for (int i = range.start; i <= range.end; i++) {
+              references.add(new Reference(
+                  nodeId,
+                  Identifiers.HasComponent,
+                  device.deviceContext.nodeId("DI" + i).expanded(),
+                  Reference.Direction.FORWARD
+              ));
+            }
+          }
+
+          context.success(references);
+        }
+      }
+      case "HoldingRegisters" -> {
+        String holdingRegisterBrowseRanges =
+            device.getModbusServerSettings().getHoldingRegisterBrowseRanges();
+
+        if (holdingRegisterBrowseRanges != null && !holdingRegisterBrowseRanges.isEmpty()) {
+          List<Reference> references = createRegisterFolderReferences(
+              nodeId,
+              "_HR%d_",
+              parseRanges(holdingRegisterBrowseRanges)
+          );
+          context.success(references);
+        }
+      }
+      case "InputRegisters" -> {
+        String inputRegisterBrowseRanges =
+            device.getModbusServerSettings().getInputRegisterBrowseRanges();
+
+        if (inputRegisterBrowseRanges != null && !inputRegisterBrowseRanges.isEmpty()) {
+          List<Reference> references = createRegisterFolderReferences(
+              nodeId,
+              "_IR%d_",
+              parseRanges(inputRegisterBrowseRanges)
+          );
+          context.success(references);
+        }
       }
       default -> {
         Matcher matcher = enumeratedAreaPattern.matcher(id);
@@ -112,17 +164,26 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     }
   }
 
-  private List<Reference> createRegisterFolderReferences(NodeId nodeId, String formatString) {
+  private List<Reference> createRegisterFolderReferences(
+      NodeId nodeId,
+      String formatString,
+      List<Range> ranges
+  ) {
+
     var references = new ArrayList<Reference>();
-    for (int i = 0; i < 100; i++) {
-      NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
-      references.add(new Reference(
-          nodeId,
-          Identifiers.HasComponent,
-          childNodeId.expanded(),
-          Reference.Direction.FORWARD
-      ));
+
+    for (Range range : ranges) {
+      for (int i = range.start; i <= range.end; i++) {
+        NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
+        references.add(new Reference(
+            nodeId,
+            Identifiers.HasComponent,
+            childNodeId.expanded(),
+            Reference.Direction.FORWARD
+        ));
+      }
     }
+
     return references;
   }
 
@@ -319,6 +380,24 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     getNodeManager().addNode(inputRegistersNode);
 
     deviceNode.addOrganizes(inputRegistersNode);
+  }
+
+  record Range(int start, int end) {}
+
+  static List<Range> parseRanges(String ranges) {
+    var rangeList = new ArrayList<Range>();
+    for (String range : ranges.split(",")) {
+      String[] parts = range.split("-");
+      if (parts.length == 1) {
+        int start = Integer.parseInt(parts[0]);
+        rangeList.add(new Range(start, start));
+      } else if (parts.length == 2) {
+        int start = Integer.parseInt(parts[0]);
+        int end = Integer.parseInt(parts[1]);
+        rangeList.add(new Range(start, end));
+      }
+    }
+    return rangeList;
   }
 
 }
