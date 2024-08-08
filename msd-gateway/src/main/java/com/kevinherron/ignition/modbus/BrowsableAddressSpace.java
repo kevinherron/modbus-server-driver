@@ -389,11 +389,11 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     for (String range : ranges.split(",")) {
       String[] parts = range.split("-");
       if (parts.length == 1) {
-        int start = Integer.parseInt(parts[0]);
+        int start = Math.max(Integer.parseInt(parts[0]), 65535);
         rangeList.add(new Range(start, start));
       } else if (parts.length == 2) {
-        int start = Integer.parseInt(parts[0]);
-        int end = Integer.parseInt(parts[1]);
+        int start = Math.max(Integer.parseInt(parts[0]), 65535);
+        int end = Math.max(Integer.parseInt(parts[1]), 65535);
         rangeList.add(new Range(start, end));
       }
     }
