@@ -10,8 +10,12 @@ import com.digitalpetri.modbus.pdu.ReadHoldingRegistersRequest;
 import com.digitalpetri.modbus.pdu.ReadHoldingRegistersResponse;
 import com.digitalpetri.modbus.pdu.ReadInputRegistersRequest;
 import com.digitalpetri.modbus.pdu.ReadInputRegistersResponse;
+import com.digitalpetri.modbus.pdu.WriteMultipleCoilsRequest;
+import com.digitalpetri.modbus.pdu.WriteMultipleCoilsResponse;
 import com.digitalpetri.modbus.pdu.WriteMultipleRegistersRequest;
 import com.digitalpetri.modbus.pdu.WriteMultipleRegistersResponse;
+import com.digitalpetri.modbus.pdu.WriteSingleCoilRequest;
+import com.digitalpetri.modbus.pdu.WriteSingleCoilResponse;
 import com.digitalpetri.modbus.pdu.WriteSingleRegisterRequest;
 import com.digitalpetri.modbus.pdu.WriteSingleRegisterResponse;
 import com.digitalpetri.modbus.server.ModbusRequestContext;
@@ -116,32 +120,54 @@ class ModbusServicesImpl implements ModbusServices {
   }
 
   @Override
-  public WriteMultipleRegistersResponse writeMultipleRegisters(
+  public WriteSingleCoilResponse writeSingleCoil(
       ModbusRequestContext context,
       int unitId,
-      WriteMultipleRegistersRequest request
+      WriteSingleCoilRequest request
   ) {
 
-    holdingRegisterLock.writeLock().lock();
+    int address = request.address();
+    int value = request.value();
+
+    coilLock.writeLock().lock();
     try {
-      int address = request.address();
-      int quantity = request.quantity();
-      byte[] values = request.values();
+      if (value == 0) {
+        coilMap.remove(address);
+      } else {
+        coilMap.put(address, true);
+      }
 
+      return new WriteSingleCoilResponse(request.address(), request.value());
+    } finally {
+      coilLock.writeLock().unlock();
+    }
+  }
+
+  @Override
+  public WriteMultipleCoilsResponse writeMultipleCoils(
+      ModbusRequestContext context,
+      int unitId,
+      WriteMultipleCoilsRequest request
+  ) {
+
+    int address = request.address();
+    int quantity = request.quantity();
+    byte[] values = request.values();
+
+    coilLock.writeLock().lock();
+    try {
       for (int i = 0; i < quantity; i++) {
-        byte high = values[i * 2];
-        byte low = values[i * 2 + 1];
-
-        if (high == 0 && low == 0) {
-          holdingRegisterMap.remove(address + i);
+        boolean value = (values[i / 8] & (1 << (i % 8))) != 0;
+        if (!value) {
+          coilMap.remove(address + i);
         } else {
-          byte[] value = new byte[]{high, low};
-          holdingRegisterMap.put(address + i, value);
+          coilMap.put(address + i, value);
         }
       }
-      return new WriteMultipleRegistersResponse(request.address(), request.quantity());
+
+      return new WriteMultipleCoilsResponse(request.address(), request.quantity());
     } finally {
-      holdingRegisterLock.writeLock().unlock();
+      coilLock.writeLock().unlock();
     }
   }
 
@@ -167,6 +193,36 @@ class ModbusServicesImpl implements ModbusServices {
       }
 
       return new WriteSingleRegisterResponse(request.address(), request.value());
+    } finally {
+      holdingRegisterLock.writeLock().unlock();
+    }
+  }
+
+  @Override
+  public WriteMultipleRegistersResponse writeMultipleRegisters(
+      ModbusRequestContext context,
+      int unitId,
+      WriteMultipleRegistersRequest request
+  ) {
+
+    holdingRegisterLock.writeLock().lock();
+    try {
+      int address = request.address();
+      int quantity = request.quantity();
+      byte[] values = request.values();
+
+      for (int i = 0; i < quantity; i++) {
+        byte high = values[i * 2];
+        byte low = values[i * 2 + 1];
+
+        if (high == 0 && low == 0) {
+          holdingRegisterMap.remove(address + i);
+        } else {
+          byte[] value = new byte[]{high, low};
+          holdingRegisterMap.put(address + i, value);
+        }
+      }
+      return new WriteMultipleRegistersResponse(request.address(), request.quantity());
     } finally {
       holdingRegisterLock.writeLock().unlock();
     }
