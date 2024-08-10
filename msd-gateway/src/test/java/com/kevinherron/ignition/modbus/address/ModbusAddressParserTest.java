@@ -69,6 +69,7 @@ class ModbusAddressParserTest {
   }
 
   @Test
+  @SuppressWarnings("indentation")
   void parseBasicAddress() throws Exception {
     for (int offset = 0; offset <= 65535; offset += 5) {
       {

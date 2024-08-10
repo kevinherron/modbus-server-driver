@@ -1,83 +1,88 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.kevinherron</groupId>
-    <artifactId>modbus-server-driver</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <packaging>pom</packaging>
+  <groupId>com.kevinherron</groupId>
+  <artifactId>modbus-server-driver</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
 
-    <name>Modbus Server Driver Module</name>
-    <description>Modbus Server Driver Module</description>
+  <name>Modbus Server Driver Module</name>
+  <description>Modbus Server Driver Module</description>
 
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <!-- Dependencies -->
-        <ignition-sdk.version>8.1.37</ignition-sdk.version>
-        <modbus.version>2.0.0-SNAPSHOT</modbus.version>
+    <!-- Dependencies -->
+    <ignition-sdk.version>8.1.37</ignition-sdk.version>
+    <modbus.version>2.0.0-SNAPSHOT</modbus.version>
 
-        <!-- Test Dependencies -->
-        <junit.version>5.10.2</junit.version>
-    </properties>
+    <!-- Test Dependencies -->
+    <junit.version>5.10.2</junit.version>
 
-    <modules>
-        <module>msd-build</module>
-        <module>msd-gateway</module>
-    </modules>
+    <!-- Plugin Dependencies -->
+    <checkstyle.version>10.17.0</checkstyle.version>
+    <maven-checkstyle-plugin.version>3.4.0</maven-checkstyle-plugin.version>
+    <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
+  </properties>
 
-    <pluginRepositories>
-        <pluginRepository>
-            <id>releases</id>
-            <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-releases</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </pluginRepository>
-    </pluginRepositories>
+  <modules>
+    <module>msd-build</module>
+    <module>msd-gateway</module>
+  </modules>
 
-    <repositories>
-        <repository>
-            <id>releases</id>
-            <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-releases</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </releases>
-        </repository>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>releases</id>
+      <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-releases</url>
+      <releases>
+        <enabled>true</enabled>
+        <updatePolicy>always</updatePolicy>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </pluginRepository>
+  </pluginRepositories>
 
-        <repository>
-            <id>snapshots</id>
-            <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-snapshots</url>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </snapshots>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-        </repository>
+  <repositories>
+    <repository>
+      <id>releases</id>
+      <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-releases</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+        <updatePolicy>always</updatePolicy>
+      </releases>
+    </repository>
 
-        <repository>
-            <id>thirdparty</id>
-            <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-thirdparty</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
+    <repository>
+      <id>snapshots</id>
+      <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-snapshots</url>
+      <snapshots>
+        <enabled>true</enabled>
+        <updatePolicy>always</updatePolicy>
+      </snapshots>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+    </repository>
+
+    <repository>
+      <id>thirdparty</id>
+      <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-thirdparty</url>
+      <releases>
+        <enabled>true</enabled>
+        <updatePolicy>always</updatePolicy>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
 
 </project>

@@ -1,6 +1,6 @@
 package com.kevinherron.ignition.modbus.address;
 
-sealed public interface DataTypeModifier {
+public sealed interface DataTypeModifier {
 
   record ByteOrderModifier(ByteOrder byteOrder) implements DataTypeModifier {}
 

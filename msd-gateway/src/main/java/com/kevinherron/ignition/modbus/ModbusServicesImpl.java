@@ -157,11 +157,13 @@ class ModbusServicesImpl implements ModbusServices {
     coilLock.writeLock().lock();
     try {
       for (int i = 0; i < quantity; i++) {
-        boolean value = (values[i / 8] & (1 << (i % 8))) != 0;
+        int vIdx = i / 8;
+        int bIdx = i % 8;
+        boolean value = (values[vIdx] & (1 << bIdx)) != 0;
         if (!value) {
           coilMap.remove(address + i);
         } else {
-          coilMap.put(address + i, value);
+          coilMap.put(address + i, true);
         }
       }
 

@@ -213,6 +213,9 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
           ));
         }
       }
+      default -> {
+        // intentional fall-through
+      }
     }
 
     return references;

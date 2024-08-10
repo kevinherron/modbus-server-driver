@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.jetbrains.annotations.Nullable;
 
-public sealed abstract class ModbusAddress {
+public abstract sealed class ModbusAddress {
 
   private final @Nullable Integer unitId;
   private final ModbusArea area;

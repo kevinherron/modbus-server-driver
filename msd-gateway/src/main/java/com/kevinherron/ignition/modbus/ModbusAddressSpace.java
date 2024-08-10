@@ -376,6 +376,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
           );
         }
       }
+      default -> throw new IllegalArgumentException("area: " + address.getArea());
     }
   }
 

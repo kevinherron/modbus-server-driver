@@ -15,7 +15,8 @@ import org.jetbrains.annotations.Nullable;
 public class ModbusAddressParser {
 
   private static final String AREAS = "C|DI|HR|IR";
-  private static final String DATA_TYPES = "BOOL|INT16|UINT16|INT32|UINT32|INT64|UINT64|FLOAT|DOUBLE|STRING[1-9][0-9]*";
+  private static final String DATA_TYPES =
+      "BOOL|INT16|UINT16|INT32|UINT32|INT64|UINT64|FLOAT|DOUBLE|STRING[1-9][0-9]*";
   private static final String DATA_TYPE_MODIFIERS = "[@BE|@LE|@HL|@LH]+";
   private static final String ARRAY_DIMENSIONS = "\\[\\d+]";
 
