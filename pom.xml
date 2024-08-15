@@ -14,6 +14,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
 
     <!-- Dependencies -->
     <ignition-sdk.version>8.1.37</ignition-sdk.version>
