@@ -245,16 +245,25 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
 
         switch (id) {
           case "Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters" -> {
-            Variant variant = readAttribute(readValueId.getNodeId(),
-                AttributeId.from(readValueId.getAttributeId()).orElseThrow());
-            results.add(new DataValue(variant));
+            DataValue value = AttributeId.from(readValueId.getAttributeId())
+                .map(attributeId -> {
+                  Variant variant = readAttribute(readValueId.getNodeId(), attributeId);
+                  return new DataValue(variant);
+                })
+                .orElseGet(() -> new DataValue(StatusCodes.Bad_AttributeIdInvalid));
+
+            results.add(value);
           }
           default -> {
             if (enumeratedAreaPattern.matcher(id).matches()) {
-              // TODO AttributeId.from can throw on attributes from 1.04+
-              Variant variant = readAttribute(readValueId.getNodeId(),
-                  AttributeId.from(readValueId.getAttributeId()).orElseThrow());
-              results.add(new DataValue(variant));
+              DataValue value = AttributeId.from(readValueId.getAttributeId())
+                  .map(attributeId -> {
+                    Variant variant = readAttribute(readValueId.getNodeId(), attributeId);
+                    return new DataValue(variant);
+                  })
+                  .orElseGet(() -> new DataValue(StatusCodes.Bad_AttributeIdInvalid));
+
+              results.add(value);
             } else {
               results.add(new DataValue(StatusCodes.Bad_NodeIdUnknown));
             }
