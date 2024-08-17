@@ -80,7 +80,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
 
     switch (id) {
       case "Coils" -> {
-        String coilBrowseRanges = device.getModbusServerSettings().getCoilBrowseRanges();
+        String coilBrowseRanges = device.modbusServerSettings.getCoilBrowseRanges();
 
         if (coilBrowseRanges != null && !coilBrowseRanges.isEmpty()) {
           var references = new ArrayList<Reference>();
@@ -102,7 +102,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
       }
       case "DiscreteInputs" -> {
         String discreteInputBrowseRanges =
-            device.getModbusServerSettings().getDiscreteInputBrowseRanges();
+            device.modbusServerSettings.getDiscreteInputBrowseRanges();
 
         if (discreteInputBrowseRanges != null && !discreteInputBrowseRanges.isEmpty()) {
           var references = new ArrayList<Reference>();
@@ -124,7 +124,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
       }
       case "HoldingRegisters" -> {
         String holdingRegisterBrowseRanges =
-            device.getModbusServerSettings().getHoldingRegisterBrowseRanges();
+            device.modbusServerSettings.getHoldingRegisterBrowseRanges();
 
         if (holdingRegisterBrowseRanges != null && !holdingRegisterBrowseRanges.isEmpty()) {
           List<Reference> references = createRegisterFolderReferences(
@@ -137,7 +137,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
       }
       case "InputRegisters" -> {
         String inputRegisterBrowseRanges =
-            device.getModbusServerSettings().getInputRegisterBrowseRanges();
+            device.modbusServerSettings.getInputRegisterBrowseRanges();
 
         if (inputRegisterBrowseRanges != null && !inputRegisterBrowseRanges.isEmpty()) {
           List<Reference> references = createRegisterFolderReferences(

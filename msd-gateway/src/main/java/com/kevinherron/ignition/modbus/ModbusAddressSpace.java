@@ -13,8 +13,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.stream.Collectors;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.ValueRank;
 import org.eclipse.milo.opcua.sdk.server.Lifecycle;
@@ -155,57 +153,65 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
     return switch (area) {
       case COILS: {
-        device.services.coilLock.readLock().lock();
-        try {
-          boolean b = device.services.coilMap.getOrDefault(address.getOffset(), false);
-          yield new Variant(b);
-        } finally {
-          device.services.coilLock.readLock().unlock();
-        }
+        boolean value = device.services.getProcessImage().get(tx ->
+            tx.readCoils(
+                coilMap ->
+                    coilMap.getOrDefault(address.getOffset(), false)
+            )
+        );
+
+        yield new Variant(value);
       }
       case DISCRETE_INPUTS: {
-        device.services.discreteInputLock.readLock().lock();
-        try {
-          boolean b = device.services.discreteInputMap.getOrDefault(address.getOffset(), false);
-          yield new Variant(b);
-        } finally {
-          device.services.discreteInputLock.readLock().unlock();
-        }
+        boolean value = device.services.getProcessImage().get(tx ->
+            tx.readDiscreteInputs(
+                discreteInputMap ->
+                    discreteInputMap.getOrDefault(address.getOffset(), false)
+            )
+        );
+
+        yield new Variant(value);
       }
       case HOLDING_REGISTERS: {
-        device.services.holdingRegisterLock.readLock().lock();
-        try {
-          byte[] registerBytes = ModbusServicesImpl.readRegisters(
-              device.services.holdingRegisterMap,
-              address.getOffset(),
-              address.getDataType().getRegisterCount()
-          );
+        //noinspection DuplicatedCode
+        byte[] bs = device.services.getProcessImage().get(tx ->
+            tx.readHoldingRegisters(holdingRegisterMap -> {
+              var registers = new byte[address.getDataType().getRegisterCount() * 2];
 
-          Object value = ModbusByteUtil.getValueForBytes(registerBytes, address);
+              for (int i = 0; i < registers.length; i += 2) {
+                byte[] value = holdingRegisterMap.getOrDefault(address.getOffset() + i,
+                    new byte[2]);
 
-          yield new Variant(value);
-        } finally {
-          device.services.holdingRegisterLock.readLock().unlock();
-        }
+                registers[i] = value[0];
+                registers[i + 1] = value[1];
+              }
+
+              return registers;
+            })
+        );
+
+        yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
       }
       case INPUT_REGISTERS:
-        device.services.inputRegisterLock.readLock().lock();
-        try {
-          byte[] registerBytes = ModbusServicesImpl.readRegisters(
-              device.services.inputRegisterMap,
-              address.getOffset(),
-              address.getDataType().getRegisterCount()
-          );
+        //noinspection DuplicatedCode
+        byte[] bs = device.services.getProcessImage().get(tx ->
+            tx.readInputRegisters(inputRegisterMap -> {
+              var registers = new byte[address.getDataType().getRegisterCount() * 2];
 
-          Object value = ModbusByteUtil.getValueForBytes(registerBytes, address);
+              for (int i = 0; i < registers.length; i += 2) {
+                byte[] value = inputRegisterMap.getOrDefault(address.getOffset() + i, new byte[2]);
 
-          yield new Variant(value);
-        } finally {
-          device.services.inputRegisterLock.readLock().unlock();
-        }
+                registers[i] = value[0];
+                registers[i + 1] = value[1];
+              }
+
+              return registers;
+            })
+        );
+
+        yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
     };
   }
-
 
   private Variant readNonValueAttribute(
       NodeId nodeId,
@@ -297,51 +303,44 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
     }
 
-    // Process PendingValueWrites, grouped by Area
-    pendingValueWrites.stream()
-        .collect(Collectors.groupingBy(p -> p.address.getArea()))
-        .forEach(this::writeValueAttributes);
-
-    context.success(pendingWrites.stream().map(p -> p.statusCode).toList());
-  }
-
-  private void writeValueAttributes(ModbusArea area, List<PendingValueWrite> pendingValueWrites) {
-    assert pendingValueWrites.stream().allMatch(p -> p.address.getArea() == area);
-
-    ReadWriteLock lock = switch (area) {
-      case COILS -> device.services.coilLock;
-      case DISCRETE_INPUTS -> device.services.discreteInputLock;
-      case HOLDING_REGISTERS -> device.services.holdingRegisterLock;
-      case INPUT_REGISTERS -> device.services.inputRegisterLock;
-    };
-
-    lock.writeLock().lock();
-    try {
-      for (PendingValueWrite pvw : pendingValueWrites) {
-        try {
-          writeValueAttribute(pvw.address, pvw.writeValue.getValue().getValue());
-          pvw.statusCode = StatusCode.GOOD;
-        } catch (UaException e) {
-          pvw.statusCode = e.getStatusCode();
+    for (PendingValueWrite pvw : pendingValueWrites) {
+      try {
+        writeValueAttribute(pvw.address, pvw.writeValue.getValue().getValue());
+        pvw.statusCode = StatusCode.GOOD;
+      } catch (UaException e) {
+        pvw.statusCode = e.getStatusCode();
+      } catch (RuntimeException e) {
+        if (e.getCause() instanceof UaException uax) {
+          pvw.statusCode = uax.getStatusCode();
+        } else {
+          pvw.statusCode = new StatusCode(StatusCodes.Bad_InternalError);
         }
       }
-    } finally {
-      lock.writeLock().unlock();
     }
+
+    context.success(pendingWrites.stream().map(p -> p.statusCode).toList());
   }
 
   private void writeValueAttribute(ModbusAddress address, Variant variant) throws UaException {
     switch (address.getArea()) {
       case COILS -> {
         if (variant.getValue() instanceof Boolean b) {
-          device.services.coilMap.put(address.getOffset(), b);
+          device.services.getProcessImage().with(tx ->
+              tx.writeCoils(
+                  coilMap -> coilMap.put(address.getOffset(), b)
+              )
+          );
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
       }
       case DISCRETE_INPUTS -> {
         if (variant.getValue() instanceof Boolean b) {
-          device.services.discreteInputMap.put(address.getOffset(), b);
+          device.services.getProcessImage().with(tx ->
+              tx.writeDiscreteInputs(
+                  discreteInputMap -> discreteInputMap.put(address.getOffset(), b)
+              )
+          );
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
@@ -350,14 +349,29 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         checkDataType(address.getDataType(), variant);
 
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          writeBitToRegister(address, variant, dataType, device.services.holdingRegisterMap);
+          device.services.getProcessImage().with(tx ->
+              tx.writeHoldingRegisters(
+                  holdingRegisterMap -> {
+                    try {
+                      writeBitToRegister(address, variant, dataType, holdingRegisterMap);
+                    } catch (UaException e) {
+                      throw new RuntimeException(e);
+                    }
+                  }
+              )
+          );
         } else {
-          byte[] registerBytes = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
+          byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          ModbusServicesImpl.writeRegisters(
-              device.services.holdingRegisterMap,
-              address.getOffset(),
-              registerBytes
+          device.services.getProcessImage().with(tx ->
+              tx.writeHoldingRegisters(
+                  holdingRegisterMap -> {
+                    for (int i = 0; i < registers.length / 2; i++) {
+                      byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
+                      holdingRegisterMap.put(address.getOffset() + i, value);
+                    }
+                  }
+              )
           );
         }
       }
@@ -365,14 +379,29 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         checkDataType(address.getDataType(), variant);
 
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          writeBitToRegister(address, variant, dataType, device.services.inputRegisterMap);
+          device.services.getProcessImage().with(tx ->
+              tx.writeInputRegisters(
+                  inputRegisterMap -> {
+                    try {
+                      writeBitToRegister(address, variant, dataType, inputRegisterMap);
+                    } catch (UaException e) {
+                      throw new RuntimeException(e);
+                    }
+                  }
+              )
+          );
         } else {
-          byte[] registerBytes = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
+          byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          ModbusServicesImpl.writeRegisters(
-              device.services.inputRegisterMap,
-              address.getOffset(),
-              registerBytes
+          device.services.getProcessImage().with(tx ->
+              tx.writeInputRegisters(
+                  inputRegisterMap -> {
+                    for (int i = 0; i < registers.length / 2; i++) {
+                      byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
+                      inputRegisterMap.put(address.getOffset() + i, value);
+                    }
+                  }
+              )
           );
         }
       }
@@ -411,11 +440,14 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     int bitIndex = dataType.bit();
     ModbusDataType underlyingType = dataType.underlyingType();
 
-    byte[] bytes = ModbusServicesImpl.readRegisters(
-        registerMap,
-        address.getOffset(),
-        underlyingType.getRegisterCount()
-    );
+    var bytes = new byte[underlyingType.getRegisterCount() * 2];
+
+    for (int i = 0; i < bytes.length; i += 2) {
+      byte[] value = registerMap.getOrDefault(address.getOffset() + i, new byte[2]);
+      bytes[i] = value[0];
+      bytes[i + 1] = value[1];
+    }
+
     Object underlyingValue = ModbusByteUtil.getValueForBytes(
         bytes,
         underlyingType,
@@ -436,7 +468,10 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
             underlyingType,
             address.getDataTypeModifiers()
         );
-        ModbusServicesImpl.writeRegisters(registerMap, address.getOffset(), newBytes);
+        for (int i = 0; i < newBytes.length; i += 2) {
+          byte[] value = new byte[]{newBytes[i], newBytes[i + 1]};
+          registerMap.put(address.getOffset() + i, value);
+        }
       } else {
         throw new UaException(StatusCodes.Bad_TypeMismatch);
       }

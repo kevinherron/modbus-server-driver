@@ -3,6 +3,7 @@ package com.kevinherron.ignition.modbus;
 import com.digitalpetri.modbus.server.ModbusTcpServer;
 import com.digitalpetri.modbus.server.NettyServerTransportConfig;
 import com.digitalpetri.modbus.server.NettyTcpServerTransport;
+import com.digitalpetri.modbus.server.ReadWriteModbusServices;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
@@ -19,14 +20,14 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   private ModbusTcpServer server;
   private volatile String status = "";
 
-  final ModbusServicesImpl services = new ModbusServicesImpl();
+  final ReadWriteModbusServices services = new ReadWriteModbusServices();
 
   private BrowsableAddressSpace browsableAddressSpace;
   private ModbusAddressSpace modbusAddressSpace;
 
   final DeviceContext deviceContext;
-  private final DeviceSettingsRecord deviceSettings;
-  private final ModbusServerDeviceSettings modbusServerSettings;
+  final DeviceSettingsRecord deviceSettings;
+  final ModbusServerDeviceSettings modbusServerSettings;
 
   public ModbusServerDevice(
       DeviceContext deviceContext,
@@ -119,14 +120,6 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
         logger.error("Error stopping Modbus server", e);
       }
     }
-  }
-
-  DeviceSettingsRecord getDeviceSettings() {
-    return deviceSettings;
-  }
-
-  ModbusServerDeviceSettings getModbusServerSettings() {
-    return modbusServerSettings;
   }
 
 }
