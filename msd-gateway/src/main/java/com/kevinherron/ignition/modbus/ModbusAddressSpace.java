@@ -4,6 +4,7 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ulong;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
 
+import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
@@ -37,6 +38,7 @@ import org.eclipse.milo.opcua.stack.core.types.enumerated.TimestampsToReturn;
 import org.eclipse.milo.opcua.stack.core.types.structured.ReadValueId;
 import org.eclipse.milo.opcua.stack.core.types.structured.ViewDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.WriteValue;
+import org.eclipse.milo.opcua.stack.core.util.ExecutionQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +46,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
+
+  private final ExecutionQueue modificationQueue;
   private final AddressSpaceFilter filter;
   private final SubscriptionModel subscriptionModel;
 
@@ -52,6 +56,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   public ModbusAddressSpace(ModbusServerDevice device) {
     this.device = device;
 
+    modificationQueue = new ExecutionQueue(OpcUa.SHARED_EXECUTOR);
+
     filter = new ModbusAddressFilter(device.getName());
 
     subscriptionModel = new SubscriptionModel(device.deviceContext.getServer(), this);
@@ -59,6 +65,13 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   @Override
   public void startup() {
+    device.services.getProcessImage().addModificationListener(modifications -> {
+      modificationQueue.submit(() -> {
+        // TODO persist modifications
+        logger.info("ProcessImage modified: {}", modifications);
+      });
+    });
+
     subscriptionModel.startup();
 
     device.register(this);

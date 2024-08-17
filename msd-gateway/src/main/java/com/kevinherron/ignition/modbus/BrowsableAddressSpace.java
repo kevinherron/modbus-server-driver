@@ -251,6 +251,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
           }
           default -> {
             if (enumeratedAreaPattern.matcher(id).matches()) {
+              // TODO AttributeId.from can throw on attributes from 1.04+
               Variant variant = readAttribute(readValueId.getNodeId(),
                   AttributeId.from(readValueId.getAttributeId()).orElseThrow());
               results.add(new DataValue(variant));
