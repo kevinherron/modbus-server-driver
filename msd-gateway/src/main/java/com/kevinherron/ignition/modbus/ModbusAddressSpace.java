@@ -4,12 +4,17 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ulong;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
 
+import com.digitalpetri.modbus.server.ProcessImage.Modification;
+import com.digitalpetri.modbus.server.ProcessImage.Modification.CoilModification;
+import com.digitalpetri.modbus.server.ProcessImage.Transaction;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -65,12 +70,16 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   @Override
   public void startup() {
-    device.services.getProcessImage().addModificationListener(modifications -> {
-      modificationQueue.submit(() -> {
-        // TODO persist modifications
-        logger.info("ProcessImage modified: {}", modifications);
-      });
-    });
+    loadProcessImage();
+
+    device.services.getProcessImage().addModificationListener(
+        modifications -> modificationQueue.submit(() -> {
+          // TODO persist modifications
+          logger.info("ProcessImage modified: {}", modifications);
+
+          saveProcessImageModifications(modifications);
+        })
+    );
 
     subscriptionModel.startup();
 
@@ -97,8 +106,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   }
 
   @Override
-  public void getReferences(BrowseContext context, ViewDescription viewDescription,
-      NodeId nodeId) {
+  public void getReferences(BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
     context.success(List.of());
   }
 
@@ -533,6 +541,108 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   @Override
   public void onMonitoringModeChanged(List<MonitoredItem> items) {
     subscriptionModel.onMonitoringModeChanged(items);
+  }
+
+  //endregion
+
+  //region ProcessImage Load/Save
+
+  private void loadProcessImage() {
+    device.services.getProcessImage().with(tx -> {
+      loadCoils(tx);
+      loadDiscreteInputs(tx);
+      loadHoldingRegisters(tx);
+      loadInputRegisters(tx);
+    });
+  }
+
+  private void loadInputRegisters(Transaction tx) {
+    try (var inputRegistersFile = new RandomAccessFile("inputRegisters.bin", "rw")) {
+      inputRegistersFile.setLength(65535 * 2);
+      byte[] inputRegisters = new byte[65535 * 2];
+      inputRegistersFile.readFully(inputRegisters);
+
+      tx.writeInputRegisters(inputRegisterMap -> {
+        for (int i = 0; i < inputRegisters.length; i += 2) {
+          byte high = inputRegisters[i];
+          byte low = inputRegisters[i + 1];
+          if (high != 0 || low != 0) {
+            inputRegisterMap.put(i / 2, new byte[]{high, low});
+          }
+        }
+      });
+    } catch (IOException e) {
+      logger.error("Error reading inputRegisters.bin", e);
+    }
+  }
+
+  private void loadHoldingRegisters(Transaction tx) {
+    try (var holdingRegistersFile = new RandomAccessFile("holdingRegisters.bin", "rw")) {
+      holdingRegistersFile.setLength(65535 * 2);
+      byte[] holdingRegisters = new byte[65535 * 2];
+      holdingRegistersFile.readFully(holdingRegisters);
+
+      tx.writeHoldingRegisters(holdingRegisterMap -> {
+        for (int i = 0; i < holdingRegisters.length; i += 2) {
+          byte high = holdingRegisters[i];
+          byte low = holdingRegisters[i + 1];
+          if (high != 0 || low != 0) {
+            holdingRegisterMap.put(i / 2, new byte[]{high, low});
+          }
+        }
+      });
+    } catch (IOException e) {
+      logger.error("Error reading holdingRegisters.bin", e);
+    }
+  }
+
+  private void loadDiscreteInputs(Transaction tx) {
+    try (var discreteInputsFile = new RandomAccessFile("discreteInputs.bin", "rw")) {
+      discreteInputsFile.setLength(65535);
+      byte[] discreteInputs = new byte[65535];
+      discreteInputsFile.readFully(discreteInputs);
+
+      tx.writeDiscreteInputs(discreteInputMap -> {
+        for (int i = 0; i < discreteInputs.length; i++) {
+          if (discreteInputs[i] != 0) {
+            discreteInputMap.put(i, true);
+          }
+        }
+      });
+    } catch (IOException e) {
+      logger.error("Error reading discreteInputs.bin", e);
+    }
+  }
+
+  private void loadCoils(Transaction tx) {
+    try (var coilsFile = new RandomAccessFile("coils.bin", "rw")) {
+      coilsFile.setLength(65535);
+      byte[] coils = new byte[65535];
+      coilsFile.readFully(coils);
+
+      tx.writeCoils(coilMap -> {
+        for (int i = 0; i < coils.length; i++) {
+          if (coils[i] != 0) {
+            coilMap.put(i, true);
+          }
+        }
+      });
+    } catch (IOException e) {
+      logger.error("Error reading coils.bin", e);
+    }
+  }
+
+  private void saveProcessImageModifications(List<Modification> modifications) {
+    for (Modification modification : modifications) {
+      if (modification instanceof CoilModification m) {
+        try (var coilsFile = new RandomAccessFile("coils.bin", "rw")) {
+          coilsFile.seek(m.address());
+          coilsFile.write(m.value() ? 1 : 0);
+        } catch (IOException e) {
+          logger.error("Error writing coils.bin", e);
+        }
+      }
+    }
   }
 
   //endregion
