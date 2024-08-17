@@ -91,7 +91,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
               references.add(new Reference(
                   nodeId,
                   Identifiers.HasComponent,
-                  device.deviceContext.nodeId("C" + i).expanded(),
+                  device.deviceContext.nodeId("C%d".formatted(i)).expanded(),
                   Reference.Direction.FORWARD
               ));
             }
@@ -113,7 +113,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
               references.add(new Reference(
                   nodeId,
                   Identifiers.HasComponent,
-                  device.deviceContext.nodeId("DI" + i).expanded(),
+                  device.deviceContext.nodeId("DI%d".formatted(i)).expanded(),
                   Reference.Direction.FORWARD
               ));
             }
@@ -392,11 +392,11 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     for (String range : ranges.split(",")) {
       String[] parts = range.split("-");
       if (parts.length == 1) {
-        int start = Math.max(Integer.parseInt(parts[0]), 65535);
+        int start = Math.min(Integer.parseInt(parts[0]), 65535);
         rangeList.add(new Range(start, start));
       } else if (parts.length == 2) {
-        int start = Math.max(Integer.parseInt(parts[0]), 65535);
-        int end = Math.max(Integer.parseInt(parts[1]), 65535);
+        int start = Math.min(Integer.parseInt(parts[0]), 65535);
+        int end = Math.min(Integer.parseInt(parts[1]), 65535);
         rangeList.add(new Range(start, end));
       }
     }
