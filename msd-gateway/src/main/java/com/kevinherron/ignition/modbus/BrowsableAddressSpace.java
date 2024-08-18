@@ -222,8 +222,12 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
   }
 
   @Override
-  public void read(ReadContext context, Double maxAge, TimestampsToReturn timestamps,
-      List<ReadValueId> readValueIds) {
+  public void read(
+      ReadContext context,
+      Double maxAge,
+      TimestampsToReturn timestamps,
+      List<ReadValueId> readValueIds
+  ) {
 
     List<DataValue> results = new ArrayList<>();
 
