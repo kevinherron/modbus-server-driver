@@ -3,10 +3,12 @@ package com.kevinherron.ignition.modbus;
 import com.digitalpetri.modbus.server.ModbusTcpServer;
 import com.digitalpetri.modbus.server.NettyServerTransportConfig;
 import com.digitalpetri.modbus.server.NettyTcpServerTransport;
+import com.digitalpetri.modbus.server.ProcessImage;
 import com.digitalpetri.modbus.server.ReadWriteModbusServices;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.eclipse.milo.opcua.sdk.server.api.AddressSpaceComposite;
 import org.jetbrains.annotations.NotNull;
@@ -20,7 +22,14 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   private ModbusTcpServer server;
   private volatile String status = "";
 
-  final ReadWriteModbusServices services = new ReadWriteModbusServices();
+  final ProcessImage processImage = new ProcessImage();
+
+  final ReadWriteModbusServices services = new ReadWriteModbusServices() {
+    @Override
+    protected Optional<ProcessImage> getProcessImage(int unitId) {
+      return Optional.of(processImage);
+    }
+  };
 
   private BrowsableAddressSpace browsableAddressSpace;
   private ModbusAddressSpace modbusAddressSpace;

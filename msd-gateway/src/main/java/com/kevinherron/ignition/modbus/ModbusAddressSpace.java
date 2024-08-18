@@ -84,8 +84,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
       loadProcessImage();
 
-      device.services.getProcessImage()
-          .addModificationListener(new ModificationListener());
+      device.processImage.addModificationListener(new ModificationListener());
     }
 
     subscriptionModel.startup();
@@ -181,7 +180,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
     return switch (area) {
       case COILS: {
-        boolean value = device.services.getProcessImage().get(tx ->
+        boolean value = device.processImage.get(tx ->
             tx.readCoils(
                 coilMap ->
                     coilMap.getOrDefault(address.getOffset(), false)
@@ -191,7 +190,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         yield new Variant(value);
       }
       case DISCRETE_INPUTS: {
-        boolean value = device.services.getProcessImage().get(tx ->
+        boolean value = device.processImage.get(tx ->
             tx.readDiscreteInputs(
                 discreteInputMap ->
                     discreteInputMap.getOrDefault(address.getOffset(), false)
@@ -202,7 +201,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
       case HOLDING_REGISTERS: {
         //noinspection DuplicatedCode
-        byte[] bs = device.services.getProcessImage().get(tx ->
+        byte[] bs = device.processImage.get(tx ->
             tx.readHoldingRegisters(holdingRegisterMap -> {
               var registers = new byte[address.getDataType().getRegisterCount() * 2];
 
@@ -222,7 +221,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
       case INPUT_REGISTERS:
         //noinspection DuplicatedCode
-        byte[] bs = device.services.getProcessImage().get(tx ->
+        byte[] bs = device.processImage.get(tx ->
             tx.readInputRegisters(inputRegisterMap -> {
               var registers = new byte[address.getDataType().getRegisterCount() * 2];
 
@@ -353,7 +352,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     switch (address.getArea()) {
       case COILS -> {
         if (variant.getValue() instanceof Boolean b) {
-          device.services.getProcessImage().with(tx ->
+          device.processImage.with(tx ->
               tx.writeCoils(
                   coilMap -> coilMap.put(address.getOffset(), b)
               )
@@ -364,7 +363,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
       case DISCRETE_INPUTS -> {
         if (variant.getValue() instanceof Boolean b) {
-          device.services.getProcessImage().with(tx ->
+          device.processImage.with(tx ->
               tx.writeDiscreteInputs(
                   discreteInputMap -> discreteInputMap.put(address.getOffset(), b)
               )
@@ -377,7 +376,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         checkDataType(address.getDataType(), variant);
 
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          device.services.getProcessImage().with(tx ->
+          device.processImage.with(tx ->
               tx.writeHoldingRegisters(
                   holdingRegisterMap -> {
                     try {
@@ -391,7 +390,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         } else {
           byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          device.services.getProcessImage().with(tx ->
+          device.processImage.with(tx ->
               tx.writeHoldingRegisters(
                   holdingRegisterMap -> {
                     for (int i = 0; i < registers.length / 2; i++) {
@@ -407,7 +406,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         checkDataType(address.getDataType(), variant);
 
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          device.services.getProcessImage().with(tx ->
+          device.processImage.with(tx ->
               tx.writeInputRegisters(
                   inputRegisterMap -> {
                     try {
@@ -421,7 +420,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         } else {
           byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          device.services.getProcessImage().with(tx ->
+          device.processImage.with(tx ->
               tx.writeInputRegisters(
                   inputRegisterMap -> {
                     for (int i = 0; i < registers.length / 2; i++) {
@@ -555,7 +554,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   //region ProcessImage Load/Save
 
   private void loadProcessImage() {
-    device.services.getProcessImage().with(tx -> {
+    device.processImage.with(tx -> {
       loadCoils(tx);
       loadDiscreteInputs(tx);
       loadHoldingRegisters(tx);
@@ -566,7 +565,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   private void loadCoils(Transaction tx) {
     Path path = device.deviceContext.getDeviceFolderPath()
         .resolve("coils.bin").toAbsolutePath();
-    
+
     try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
       coilsFile.setLength(65535);
       byte[] coils = new byte[65535];
