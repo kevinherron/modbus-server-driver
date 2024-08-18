@@ -4,8 +4,11 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ulong;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
 
-import com.digitalpetri.modbus.server.ProcessImage.Modification;
+import com.digitalpetri.modbus.server.ProcessImage;
 import com.digitalpetri.modbus.server.ProcessImage.Modification.CoilModification;
+import com.digitalpetri.modbus.server.ProcessImage.Modification.DiscreteInputModification;
+import com.digitalpetri.modbus.server.ProcessImage.Modification.HoldingRegisterModification;
+import com.digitalpetri.modbus.server.ProcessImage.Modification.InputRegisterModification;
 import com.digitalpetri.modbus.server.ProcessImage.Transaction;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
@@ -15,6 +18,8 @@ import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -51,8 +56,6 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
-
-  private final ExecutionQueue modificationQueue;
   private final AddressSpaceFilter filter;
   private final SubscriptionModel subscriptionModel;
 
@@ -61,8 +64,6 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   public ModbusAddressSpace(ModbusServerDevice device) {
     this.device = device;
 
-    modificationQueue = new ExecutionQueue(OpcUa.SHARED_EXECUTOR);
-
     filter = new ModbusAddressFilter(device.getName());
 
     subscriptionModel = new SubscriptionModel(device.deviceContext.getServer(), this);
@@ -70,16 +71,22 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   @Override
   public void startup() {
-    loadProcessImage();
+    if (device.modbusServerSettings.getPersistData()) {
+      Path deviceFolderPath = device.deviceContext.getDeviceFolderPath().toAbsolutePath();
 
-    device.services.getProcessImage().addModificationListener(
-        modifications -> modificationQueue.submit(() -> {
-          // TODO persist modifications
-          logger.info("ProcessImage modified: {}", modifications);
+      if (!Files.exists(deviceFolderPath)) {
+        try {
+          Files.createDirectories(deviceFolderPath);
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
 
-          saveProcessImageModifications(modifications);
-        })
-    );
+      loadProcessImage();
+
+      device.services.getProcessImage()
+          .addModificationListener(new ModificationListener());
+    }
 
     subscriptionModel.startup();
 
@@ -389,7 +396,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
                   holdingRegisterMap -> {
                     for (int i = 0; i < registers.length / 2; i++) {
                       byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
-                      holdingRegisterMap.put(address.getOffset() + i, value);
+                      holdingRegisterMap.put(address.getOffset() + i * 2, value);
                     }
                   }
               )
@@ -419,7 +426,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
                   inputRegisterMap -> {
                     for (int i = 0; i < registers.length / 2; i++) {
                       byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
-                      inputRegisterMap.put(address.getOffset() + i, value);
+                      inputRegisterMap.put(address.getOffset() + i * 2, value);
                     }
                   }
               )
@@ -556,28 +563,53 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     });
   }
 
-  private void loadInputRegisters(Transaction tx) {
-    try (var inputRegistersFile = new RandomAccessFile("inputRegisters.bin", "rw")) {
-      inputRegistersFile.setLength(65535 * 2);
-      byte[] inputRegisters = new byte[65535 * 2];
-      inputRegistersFile.readFully(inputRegisters);
+  private void loadCoils(Transaction tx) {
+    Path path = device.deviceContext.getDeviceFolderPath()
+        .resolve("coils.bin").toAbsolutePath();
+    
+    try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
+      coilsFile.setLength(65535);
+      byte[] coils = new byte[65535];
+      coilsFile.readFully(coils);
 
-      tx.writeInputRegisters(inputRegisterMap -> {
-        for (int i = 0; i < inputRegisters.length; i += 2) {
-          byte high = inputRegisters[i];
-          byte low = inputRegisters[i + 1];
-          if (high != 0 || low != 0) {
-            inputRegisterMap.put(i / 2, new byte[]{high, low});
+      tx.writeCoils(coilMap -> {
+        for (int i = 0; i < coils.length; i++) {
+          if (coils[i] != 0) {
+            coilMap.put(i, true);
           }
         }
       });
     } catch (IOException e) {
-      logger.error("Error reading inputRegisters.bin", e);
+      logger.error("Error reading coils.bin", e);
+    }
+  }
+
+  private void loadDiscreteInputs(Transaction tx) {
+    Path path = device.deviceContext.getDeviceFolderPath()
+        .resolve("discreteInputs.bin").toAbsolutePath();
+
+    try (var discreteInputsFile = new RandomAccessFile(path.toFile(), "rw")) {
+      discreteInputsFile.setLength(65535);
+      byte[] discreteInputs = new byte[65535];
+      discreteInputsFile.readFully(discreteInputs);
+
+      tx.writeDiscreteInputs(discreteInputMap -> {
+        for (int i = 0; i < discreteInputs.length; i++) {
+          if (discreteInputs[i] != 0) {
+            discreteInputMap.put(i, true);
+          }
+        }
+      });
+    } catch (IOException e) {
+      logger.error("Error reading discreteInputs.bin", e);
     }
   }
 
   private void loadHoldingRegisters(Transaction tx) {
-    try (var holdingRegistersFile = new RandomAccessFile("holdingRegisters.bin", "rw")) {
+    Path path = device.deviceContext.getDeviceFolderPath()
+        .resolve("holdingRegisters.bin").toAbsolutePath();
+
+    try (var holdingRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
       holdingRegistersFile.setLength(65535 * 2);
       byte[] holdingRegisters = new byte[65535 * 2];
       holdingRegistersFile.readFully(holdingRegisters);
@@ -596,53 +628,107 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
   }
 
-  private void loadDiscreteInputs(Transaction tx) {
-    try (var discreteInputsFile = new RandomAccessFile("discreteInputs.bin", "rw")) {
-      discreteInputsFile.setLength(65535);
-      byte[] discreteInputs = new byte[65535];
-      discreteInputsFile.readFully(discreteInputs);
+  private void loadInputRegisters(Transaction tx) {
+    Path path = device.deviceContext.getDeviceFolderPath()
+        .resolve("inputRegisters.bin").toAbsolutePath();
 
-      tx.writeDiscreteInputs(discreteInputMap -> {
-        for (int i = 0; i < discreteInputs.length; i++) {
-          if (discreteInputs[i] != 0) {
-            discreteInputMap.put(i, true);
+    try (var inputRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
+      inputRegistersFile.setLength(65535 * 2);
+      byte[] inputRegisters = new byte[65535 * 2];
+      inputRegistersFile.readFully(inputRegisters);
+
+      tx.writeInputRegisters(inputRegisterMap -> {
+        for (int i = 0; i < inputRegisters.length; i += 2) {
+          byte high = inputRegisters[i];
+          byte low = inputRegisters[i + 1];
+          if (high != 0 || low != 0) {
+            inputRegisterMap.put(i / 2, new byte[]{high, low});
           }
         }
       });
     } catch (IOException e) {
-      logger.error("Error reading discreteInputs.bin", e);
+      logger.error("Error reading inputRegisters.bin", e);
     }
   }
 
-  private void loadCoils(Transaction tx) {
-    try (var coilsFile = new RandomAccessFile("coils.bin", "rw")) {
-      coilsFile.setLength(65535);
-      byte[] coils = new byte[65535];
-      coilsFile.readFully(coils);
+  private class ModificationListener implements ProcessImage.ModificationListener {
 
-      tx.writeCoils(coilMap -> {
-        for (int i = 0; i < coils.length; i++) {
-          if (coils[i] != 0) {
-            coilMap.put(i, true);
+    private final ExecutionQueue modificationQueue = new ExecutionQueue(OpcUa.SHARED_EXECUTOR);
+
+    @Override
+    public void onCoilsModified(List<CoilModification> modifications) {
+      modificationQueue.submit(() -> {
+        logger.trace("onCoilsModified: {}", modifications);
+
+        Path path = device.deviceContext.getDeviceFolderPath()
+            .resolve("coils.bin").toAbsolutePath();
+        try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
+          for (CoilModification m : modifications) {
+            coilsFile.seek(m.address());
+            coilsFile.write(m.value() ? 1 : 0);
           }
-        }
-      });
-    } catch (IOException e) {
-      logger.error("Error reading coils.bin", e);
-    }
-  }
-
-  private void saveProcessImageModifications(List<Modification> modifications) {
-    for (Modification modification : modifications) {
-      if (modification instanceof CoilModification m) {
-        try (var coilsFile = new RandomAccessFile("coils.bin", "rw")) {
-          coilsFile.seek(m.address());
-          coilsFile.write(m.value() ? 1 : 0);
         } catch (IOException e) {
           logger.error("Error writing coils.bin", e);
         }
-      }
+      });
     }
+
+    @Override
+    public void onDiscreteInputsModified(List<DiscreteInputModification> modifications) {
+      modificationQueue.submit(() -> {
+        logger.trace("onDiscreteInputsModified: {}", modifications);
+
+        Path path = device.deviceContext.getDeviceFolderPath()
+            .resolve("discreteInputs.bin").toAbsolutePath();
+        try (var discreteInputsFile = new RandomAccessFile(path.toFile(), "rw")) {
+          for (DiscreteInputModification m : modifications) {
+            discreteInputsFile.seek(m.address());
+            discreteInputsFile.write(m.value() ? 1 : 0);
+          }
+        } catch (IOException e) {
+          logger.error("Error writing discreteInputs.bin", e);
+        }
+      });
+    }
+
+    @Override
+    public void onHoldingRegistersModified(List<HoldingRegisterModification> modifications) {
+      modificationQueue.submit(() -> {
+        logger.trace("onHoldingRegistersModified: {}", modifications);
+
+        Path path = device.deviceContext.getDeviceFolderPath()
+            .resolve("holdingRegisters.bin").toAbsolutePath();
+        try (var holdingRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
+          for (HoldingRegisterModification m : modifications) {
+            holdingRegistersFile.seek(m.address() * 2L);
+            holdingRegistersFile.writeByte(m.value()[0]);
+            holdingRegistersFile.writeByte(m.value()[1]);
+          }
+        } catch (IOException e) {
+          logger.error("Error writing holdingRegisters.bin", e);
+        }
+      });
+    }
+
+    @Override
+    public void onInputRegistersModified(List<InputRegisterModification> modifications) {
+      modificationQueue.submit(() -> {
+        logger.trace("onInputRegistersModified: {}", modifications);
+
+        Path path = device.deviceContext.getDeviceFolderPath()
+            .resolve("inputRegisters.bin").toAbsolutePath();
+        try (var inputRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
+          for (InputRegisterModification m : modifications) {
+            inputRegistersFile.seek(m.address() * 2L);
+            inputRegistersFile.writeByte(m.value()[0]);
+            inputRegistersFile.writeByte(m.value()[1]);
+          }
+        } catch (IOException e) {
+          logger.error("Error writing inputRegisters.bin", e);
+        }
+      });
+    }
+
   }
 
   //endregion
