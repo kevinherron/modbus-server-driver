@@ -70,17 +70,12 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   public void startup() {
     var transport = new NettyTcpServerTransport(
         NettyServerTransportConfig.create(cfg -> {
-          cfg.context = ModbusServerDevice.this;
           cfg.bindAddress = modbusServerSettings.getBindAddress();
           cfg.port = modbusServerSettings.getPort();
         })
     );
 
-    server = ModbusTcpServer.create(
-        transport,
-        services,
-        cfg -> cfg.context = ModbusServerDevice.this
-    );
+    server = ModbusTcpServer.create(transport, services);
 
     try {
       server.start();
