@@ -32,6 +32,7 @@
   <modules>
     <module>msd-build</module>
     <module>msd-gateway</module>
+    <module>msd-gateway-deps</module>
   </modules>
 
   <pluginRepositories>
