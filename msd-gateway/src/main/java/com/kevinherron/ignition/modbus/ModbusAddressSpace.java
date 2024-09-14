@@ -26,12 +26,13 @@ import java.util.List;
 import java.util.Map;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.ValueRank;
+import org.eclipse.milo.opcua.sdk.server.AddressSpace.ReferenceResult.ReferenceList;
+import org.eclipse.milo.opcua.sdk.server.AddressSpaceFilter;
+import org.eclipse.milo.opcua.sdk.server.AddressSpaceFragment;
 import org.eclipse.milo.opcua.sdk.server.Lifecycle;
-import org.eclipse.milo.opcua.sdk.server.api.AddressSpaceFilter;
-import org.eclipse.milo.opcua.sdk.server.api.AddressSpaceFragment;
-import org.eclipse.milo.opcua.sdk.server.api.DataItem;
-import org.eclipse.milo.opcua.sdk.server.api.MonitoredItem;
-import org.eclipse.milo.opcua.sdk.server.api.SimpleAddressSpaceFilter;
+import org.eclipse.milo.opcua.sdk.server.SimpleAddressSpaceFilter;
+import org.eclipse.milo.opcua.sdk.server.items.DataItem;
+import org.eclipse.milo.opcua.sdk.server.items.MonitoredItem;
 import org.eclipse.milo.opcua.sdk.server.util.SubscriptionModel;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
@@ -64,14 +65,14 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   public ModbusAddressSpace(ModbusServerDevice device) {
     this.device = device;
 
-    filter = new ModbusAddressFilter(device.getName());
+    filter = new ModbusAddressFilter(device.deviceContext.getName());
 
     subscriptionModel = new SubscriptionModel(device.deviceContext.getServer(), this);
   }
 
   @Override
   public void startup() {
-    if (device.modbusServerSettings.getPersistData()) {
+    if (device.deviceConfig.persistence().persistData()) {
       Path deviceFolderPath = device.deviceContext.getDeviceFolderPath().toAbsolutePath();
 
       if (!Files.exists(deviceFolderPath)) {
@@ -106,14 +107,19 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   //region Browse
 
+
   @Override
-  public void browse(BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
-    context.success(List.of());
+  public List<ReferenceResult> browse(
+      BrowseContext context, ViewDescription viewDescription, List<NodeId> nodeIds) {
+
+    return List.of();
   }
 
   @Override
-  public void getReferences(BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
-    context.success(List.of());
+  public ReferenceList gather(
+      BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
+
+    return ReferenceResult.of(List.of());
   }
 
   //endregion
@@ -121,7 +127,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   //region Read
 
   @Override
-  public void read(
+  public List<DataValue> read(
       ReadContext context,
       Double maxAge,
       TimestampsToReturn timestamps,
@@ -142,7 +148,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
 
       String id = readValueId.getNodeId().getIdentifier().toString();
-      String name = "[%s]".formatted(device.getName());
+      String name = "[%s]".formatted(device.deviceContext.getName());
       String addr = id.substring(id.indexOf(name) + name.length());
 
       try {
@@ -172,7 +178,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
     }
 
-    context.success(pendingReads.stream().map(p -> p.value).toList());
+    return pendingReads.stream().map(p -> p.value).toList();
   }
 
   private Variant readValueAttribute(ModbusAddress address) throws UaException {
@@ -254,12 +260,12 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       case NodeClass -> NodeClass.Variable;
       case BrowseName -> {
         String id = nodeId.getIdentifier().toString();
-        String addr = id.substring(device.getName().length() + 2);
+        String addr = id.substring(device.deviceContext.getName().length() + 2);
         yield device.deviceContext.qualifiedName(addr);
       }
       case DisplayName, Description -> {
         String id = nodeId.getIdentifier().toString();
-        String addr = id.substring(device.getName().length() + 2);
+        String addr = id.substring(device.deviceContext.getName().length() + 2);
         yield LocalizedText.english(addr);
       }
       case WriteMask, UserWriteMask -> UInteger.valueOf(0);
@@ -298,7 +304,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   //region Write
 
   @Override
-  public void write(WriteContext context, List<WriteValue> writeValues) {
+  public List<StatusCode> write(WriteContext context, List<WriteValue> writeValues) {
     var pendingWrites = writeValues.stream()
         .map(PendingWrite::new)
         .toList();
@@ -320,7 +326,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         pending.statusCode = new StatusCode(StatusCodes.Bad_AttributeIdInvalid);
       } else if (attributeId == AttributeId.Value) {
         String id = writeValue.getNodeId().getIdentifier().toString();
-        String name = "[%s]".formatted(device.getName());
+        String name = "[%s]".formatted(device.deviceContext.getName());
         String addr = id.substring(id.indexOf(name) + name.length());
         try {
           ModbusAddress address = ModbusAddressParser.parse(addr);
@@ -348,7 +354,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
     }
 
-    context.success(pendingWrites.stream().map(p -> p.statusCode).toList());
+    return pendingWrites.stream().map(p -> p.statusCode).toList();
   }
 
   private void writeValueAttribute(ModbusAddress address, Variant variant) throws UaException {

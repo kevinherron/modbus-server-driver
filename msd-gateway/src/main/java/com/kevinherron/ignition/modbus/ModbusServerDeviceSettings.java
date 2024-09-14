@@ -11,6 +11,8 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsR
 import java.io.Serial;
 import simpleorm.dataset.SFieldFlags;
 
+@Deprecated
+@SuppressWarnings("DeprecatedIsStillUsed")
 public class ModbusServerDeviceSettings extends PersistentRecord {
 
   @Serial

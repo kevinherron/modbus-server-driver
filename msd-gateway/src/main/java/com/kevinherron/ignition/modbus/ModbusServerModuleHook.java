@@ -2,28 +2,25 @@ package com.kevinherron.ignition.modbus;
 
 import com.inductiveautomation.ignition.common.BundleUtil;
 import com.inductiveautomation.ignition.common.licensing.LicenseState;
+import com.inductiveautomation.ignition.gateway.config.migration.ExtensionPointRecordMigrationStrategy;
+import com.inductiveautomation.ignition.gateway.config.migration.IdbMigrationStrategy;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.AbstractDeviceModuleHook;
-import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceType;
+import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceExtensionPoint;
+import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
 import java.util.List;
-import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
 
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger("com.kevinherron.ignition.Modbus");
-
   @Override
-  public void setup(@NotNull GatewayContext context) {
+  public void setup(GatewayContext context) {
     BundleUtil.get().addBundle("ModbusServer", ModbusServerDevice.class, "ModbusServer");
 
     super.setup(context);
   }
 
   @Override
-  public void startup(@NotNull LicenseState activationState) {
+  public void startup(LicenseState activationState) {
     super.startup(activationState);
   }
 
@@ -35,8 +32,44 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
   }
 
   @Override
-  protected @NotNull List<DeviceType> getDeviceTypes() {
-    return List.of(new ModbusServerDeviceType());
+  protected List<DeviceExtensionPoint<?>> getDeviceExtensionPoints() {
+    return List.of(new ModbusServerDeviceExtensionPoint());
+  }
+
+  @Override
+  public List<IdbMigrationStrategy> getRecordMigrationStrategies() {
+    @SuppressWarnings("deprecation")
+    var strategy = ExtensionPointRecordMigrationStrategy
+        .newBuilder("com.kevinherron.modbus-server-driver")
+        .resourceType(DeviceExtensionPoint.DEVICE_RESOURCE_TYPE)
+        .profileMeta(DeviceSettingsRecord.META)
+        .settingsMeta(ModbusServerDeviceSettings.META)
+        .settingsRecordForeignKey(ModbusServerDeviceSettings.DEVICE_SETTINGS)
+        .settingsEncoder(encoder ->
+            encoder.withCustomFieldName(
+                    ModbusServerDeviceSettings.BIND_ADDRESS,
+                    "connectivity.bindAddress")
+                .withCustomFieldName(
+                    ModbusServerDeviceSettings.PORT,
+                    "connectivity.port")
+                .withCustomFieldName(
+                    ModbusServerDeviceSettings.PERSIST_DATA,
+                    "persistence.persistData")
+                .withCustomFieldName(
+                    ModbusServerDeviceSettings.COIL_BROWSE_RANGES,
+                    "browsing.coilBrowseRanges")
+                .withCustomFieldName(
+                    ModbusServerDeviceSettings.DISCRETE_INPUT_BROWSE_RANGES,
+                    "browsing.discreteInputBrowseRanges")
+                .withCustomFieldName(
+                    ModbusServerDeviceSettings.HOLDING_REGISTER_BROWSE_RANGES,
+                    "browsing.holdingRegisterBrowseRanges")
+                .withCustomFieldName(
+                    ModbusServerDeviceSettings.INPUT_REGISTER_BROWSE_RANGES,
+                    "browsing.inputRegisterBrowseRanges"))
+        .build();
+
+    return List.of(strategy);
   }
 
 }

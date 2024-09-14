@@ -17,7 +17,7 @@
     <maven.compiler.release>17</maven.compiler.release>
 
     <!-- Dependencies -->
-    <ignition-sdk.version>8.1.37</ignition-sdk.version>
+    <ignition-sdk.version>8.3.0-SNAPSHOT</ignition-sdk.version>
     <modbus.version>2.0.0</modbus.version>
 
     <!-- Test Dependencies -->
@@ -71,6 +71,10 @@
       <snapshots>
         <enabled>false</enabled>
       </snapshots>
+    </repository>
+    <repository>
+      <id>ia-beta</id>
+      <url>https://nexus.inductiveautomation.com/repository/inductiveautomation-beta</url>
     </repository>
   </repositories>
 

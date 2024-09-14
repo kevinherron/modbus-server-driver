@@ -7,12 +7,10 @@ import com.digitalpetri.modbus.tcp.server.NettyServerTransportConfig;
 import com.digitalpetri.modbus.tcp.server.NettyTcpServerTransport;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
-import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import org.eclipse.milo.opcua.sdk.server.api.AddressSpaceComposite;
-import org.jetbrains.annotations.NotNull;
+import org.eclipse.milo.opcua.sdk.server.AddressSpaceComposite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,43 +34,30 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   private ModbusAddressSpace modbusAddressSpace;
 
   final DeviceContext deviceContext;
-  final DeviceSettingsRecord deviceSettings;
-  final ModbusServerDeviceSettings modbusServerSettings;
+  final ModbusServerDeviceConfig deviceConfig;
 
   public ModbusServerDevice(
       DeviceContext deviceContext,
-      DeviceSettingsRecord deviceSettings,
-      ModbusServerDeviceSettings modbusServerSettings
+      ModbusServerDeviceConfig deviceConfig
   ) {
 
     super(deviceContext.getServer());
 
     this.deviceContext = deviceContext;
-    this.deviceSettings = deviceSettings;
-    this.modbusServerSettings = modbusServerSettings;
+    this.deviceConfig = deviceConfig;
   }
 
   @Override
-  public @NotNull String getName() {
-    return deviceSettings.getName();
-  }
-
-  @Override
-  public @NotNull String getStatus() {
+  public String getStatus() {
     return status;
-  }
-
-  @Override
-  public @NotNull String getTypeId() {
-    return deviceSettings.getType();
   }
 
   @Override
   public void startup() {
     var transport = new NettyTcpServerTransport(
         NettyServerTransportConfig.create(cfg -> {
-          cfg.bindAddress = modbusServerSettings.getBindAddress();
-          cfg.port = modbusServerSettings.getPort();
+          cfg.bindAddress = deviceConfig.connectivity().bindAddress();
+          cfg.port = deviceConfig.connectivity().port();
           cfg.executor = OpcUa.SHARED_EXECUTOR;
           cfg.eventLoopGroup = OpcUa.SHARED_EVENT_LOOP;
         })
@@ -87,8 +72,8 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
 
       logger.info(
           "Modbus server listening on {}:{}",
-          modbusServerSettings.getBindAddress(),
-          modbusServerSettings.getPort()
+          deviceConfig.connectivity().bindAddress(),
+          deviceConfig.connectivity().port()
       );
 
       browsableAddressSpace = new BrowsableAddressSpace(deviceContext.getServer(), this);
@@ -97,7 +82,10 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
       modbusAddressSpace = new ModbusAddressSpace(this);
       modbusAddressSpace.startup();
 
-      onDataItemsCreated(deviceContext.getSubscriptionModel().getDataItems(getName()));
+      onDataItemsCreated(
+          deviceContext.getSubscriptionModel()
+              .getDataItems(deviceContext.getName())
+      );
     } catch (ExecutionException e) {
       status = "Error";
       logger.error("Error starting Modbus server", e);
