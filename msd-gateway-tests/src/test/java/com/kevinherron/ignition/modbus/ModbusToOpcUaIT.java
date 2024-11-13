@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.digitalpetri.modbus.client.ModbusClient;
 import com.digitalpetri.modbus.client.ModbusTcpClient;
-import com.digitalpetri.modbus.client.NettyTcpClientTransport;
 import com.digitalpetri.modbus.internal.util.Hex;
 import com.digitalpetri.modbus.pdu.ReadHoldingRegistersRequest;
 import com.digitalpetri.modbus.pdu.ReadHoldingRegistersResponse;
@@ -18,6 +17,7 @@ import com.digitalpetri.modbus.pdu.WriteMultipleCoilsRequest;
 import com.digitalpetri.modbus.pdu.WriteMultipleRegistersRequest;
 import com.digitalpetri.modbus.pdu.WriteSingleCoilRequest;
 import com.digitalpetri.modbus.pdu.WriteSingleRegisterRequest;
+import com.digitalpetri.modbus.tcp.client.NettyTcpClientTransport;
 import com.mussonindustrial.testcontainers.ignition.GatewayEdition;
 import com.mussonindustrial.testcontainers.ignition.IgnitionContainer;
 import com.mussonindustrial.testcontainers.ignition.Module;

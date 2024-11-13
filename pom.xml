@@ -18,7 +18,7 @@
 
     <!-- Dependencies -->
     <ignition-sdk.version>8.1.37</ignition-sdk.version>
-    <modbus.version>2.0.0-RC3</modbus.version>
+    <modbus.version>2.0.0</modbus.version>
 
     <!-- Test Dependencies -->
     <junit.version>5.10.2</junit.version>

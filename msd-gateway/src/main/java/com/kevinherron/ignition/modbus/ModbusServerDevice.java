@@ -1,10 +1,10 @@
 package com.kevinherron.ignition.modbus;
 
 import com.digitalpetri.modbus.server.ModbusTcpServer;
-import com.digitalpetri.modbus.server.NettyServerTransportConfig;
-import com.digitalpetri.modbus.server.NettyTcpServerTransport;
 import com.digitalpetri.modbus.server.ProcessImage;
 import com.digitalpetri.modbus.server.ReadWriteModbusServices;
+import com.digitalpetri.modbus.tcp.server.NettyServerTransportConfig;
+import com.digitalpetri.modbus.tcp.server.NettyTcpServerTransport;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
