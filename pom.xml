@@ -6,7 +6,7 @@
 
   <groupId>com.kevinherron</groupId>
   <artifactId>modbus-server-driver</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Modbus Server Driver Module</name>
