@@ -49,9 +49,6 @@ public class ModbusServerDeviceSettings extends PersistentRecord {
       new StringField(META, "InputRegisterBrowseRanges");
 
   static {
-    DEVICE_SETTINGS.getFormMeta().setVisible(false);
-    DEVICE_SETTINGS_ID.getFormMeta().setVisible(false);
-
     PERSIST_DATA.setDefault(true);
     COIL_BROWSE_RANGES.setDefault("0-10");
     DISCRETE_INPUT_BROWSE_RANGES.setDefault("0-10");
