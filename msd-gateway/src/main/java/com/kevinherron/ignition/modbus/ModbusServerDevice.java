@@ -8,6 +8,7 @@ import com.digitalpetri.modbus.tcp.server.NettyTcpServerTransport;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceSettingsRecord;
+import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.eclipse.milo.opcua.sdk.server.api.AddressSpaceComposite;
@@ -72,6 +73,8 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
         NettyServerTransportConfig.create(cfg -> {
           cfg.bindAddress = modbusServerSettings.getBindAddress();
           cfg.port = modbusServerSettings.getPort();
+          cfg.executor = OpcUa.SHARED_EXECUTOR;
+          cfg.eventLoopGroup = OpcUa.SHARED_EVENT_LOOP;
         })
     );
 
