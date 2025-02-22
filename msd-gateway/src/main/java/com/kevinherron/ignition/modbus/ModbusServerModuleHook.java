@@ -12,8 +12,7 @@ import org.slf4j.LoggerFactory;
 
 public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
 
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger("com.kevinherron.ignition.Modbus");
+  private static final Logger LOGGER = LoggerFactory.getLogger("com.kevinherron.ignition.Modbus");
 
   @Override
   public void setup(@NotNull GatewayContext context) {
@@ -38,5 +37,4 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
   protected @NotNull List<DeviceType> getDeviceTypes() {
     return List.of(new ModbusServerDeviceType());
   }
-
 }

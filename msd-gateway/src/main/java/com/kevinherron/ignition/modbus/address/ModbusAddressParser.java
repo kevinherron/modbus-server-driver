@@ -20,8 +20,9 @@ public class ModbusAddressParser {
   private static final String DATA_TYPE_MODIFIERS = "[@BE|@LE|@HL|@LH]+";
   private static final String ARRAY_DIMENSIONS = "\\[\\d+]";
 
-  static final Pattern ADDRESS_PATTERN = Pattern.compile(
-      """
+  static final Pattern ADDRESS_PATTERN =
+      Pattern.compile(
+          """
           ((\\d+)\\.)?\
           (%s)\
           (?:<(%s)((?:%s){0,3})(?:(%s)?)>)?\
@@ -29,11 +30,9 @@ public class ModbusAddressParser {
           ((?:%s){0,3})?\
           (?:\\.(\\d+))?\
           """
-          .formatted(
-              AREAS, DATA_TYPES,
-              ARRAY_DIMENSIONS, DATA_TYPE_MODIFIERS, ARRAY_DIMENSIONS),
-      Pattern.CASE_INSENSITIVE
-  );
+              .formatted(
+                  AREAS, DATA_TYPES, ARRAY_DIMENSIONS, DATA_TYPE_MODIFIERS, ARRAY_DIMENSIONS),
+          Pattern.CASE_INSENSITIVE);
 
   public static ModbusAddress parse(String address) throws Exception {
     var matcher = ADDRESS_PATTERN.matcher(address);
@@ -54,17 +53,21 @@ public class ModbusAddressParser {
 
     Integer unitId = parseUnitId(matcher.group(2));
 
-    ModbusArea area = parseArea(matcher.group(3))
-        .orElseThrow(() -> new Exception("invalid area: " + matcher.group(3)));
+    ModbusArea area =
+        parseArea(matcher.group(3))
+            .orElseThrow(() -> new Exception("invalid area: " + matcher.group(3)));
 
-    ModbusDataType dataType = parseDataType(area, matcher.group(4))
-        .orElseThrow(() -> new Exception("invalid DataType: " + matcher.group(4)));
+    ModbusDataType dataType =
+        parseDataType(area, matcher.group(4))
+            .orElseThrow(() -> new Exception("invalid DataType: " + matcher.group(4)));
 
-    List<Integer> dimensions = parseArrayDimensions(matcher.group(5))
-        .orElseThrow(() -> new Exception("invalid dimensions: " + matcher.group(5)));
+    List<Integer> dimensions =
+        parseArrayDimensions(matcher.group(5))
+            .orElseThrow(() -> new Exception("invalid dimensions: " + matcher.group(5)));
 
-    Set<DataTypeModifier> dataTypeModifiers = parseDataTypeModifiers(matcher.group(6))
-        .orElseThrow(() -> new Exception("invalid modifiers: " + matcher.group(6)));
+    Set<DataTypeModifier> dataTypeModifiers =
+        parseDataTypeModifiers(matcher.group(6))
+            .orElseThrow(() -> new Exception("invalid modifiers: " + matcher.group(6)));
 
     int offset = Integer.parseInt(matcher.group(7));
 
@@ -98,13 +101,14 @@ public class ModbusAddressParser {
   }
 
   private static Optional<ModbusArea> parseArea(String area) {
-    ModbusArea a = switch (area.toUpperCase()) {
-      case "C" -> ModbusArea.COILS;
-      case "DI" -> ModbusArea.DISCRETE_INPUTS;
-      case "HR" -> ModbusArea.HOLDING_REGISTERS;
-      case "IR" -> ModbusArea.INPUT_REGISTERS;
-      default -> null;
-    };
+    ModbusArea a =
+        switch (area.toUpperCase()) {
+          case "C" -> ModbusArea.COILS;
+          case "DI" -> ModbusArea.DISCRETE_INPUTS;
+          case "HR" -> ModbusArea.HOLDING_REGISTERS;
+          case "IR" -> ModbusArea.INPUT_REGISTERS;
+          default -> null;
+        };
 
     return Optional.ofNullable(a);
   }
@@ -117,18 +121,19 @@ public class ModbusAddressParser {
       };
     }
 
-    ModbusDataType mdt = switch (dataType.toUpperCase()) {
-      case "BOOL" -> new ModbusDataType.Bool();
-      case "INT16" -> new ModbusDataType.Int16();
-      case "UINT16" -> new ModbusDataType.UInt16();
-      case "INT32" -> new ModbusDataType.Int32();
-      case "UINT32" -> new ModbusDataType.UInt32();
-      case "INT64" -> new ModbusDataType.Int64();
-      case "UINT64" -> new ModbusDataType.UInt64();
-      case "FLOAT" -> new ModbusDataType.Float32();
-      case "DOUBLE" -> new ModbusDataType.Double64();
-      default -> null;
-    };
+    ModbusDataType mdt =
+        switch (dataType.toUpperCase()) {
+          case "BOOL" -> new ModbusDataType.Bool();
+          case "INT16" -> new ModbusDataType.Int16();
+          case "UINT16" -> new ModbusDataType.UInt16();
+          case "INT32" -> new ModbusDataType.Int32();
+          case "UINT32" -> new ModbusDataType.UInt32();
+          case "INT64" -> new ModbusDataType.Int64();
+          case "UINT64" -> new ModbusDataType.UInt64();
+          case "FLOAT" -> new ModbusDataType.Float32();
+          case "DOUBLE" -> new ModbusDataType.Double64();
+          default -> null;
+        };
 
     if (mdt == null) {
       if (dataType.toUpperCase().startsWith("STRING")) {
@@ -162,13 +167,14 @@ public class ModbusAddressParser {
     var set = new HashSet<DataTypeModifier>();
 
     for (String s : modifiers.split("@")) {
-      DataTypeModifier m = switch (s.toUpperCase()) {
-        case "BE" -> new ByteOrderModifier(ByteOrder.BIG_ENDIAN);
-        case "LE" -> new ByteOrderModifier(ByteOrder.LITTLE_ENDIAN);
-        case "HL" -> new WordOrderModifier(WordOrder.HIGH_LOW);
-        case "LH" -> new WordOrderModifier(WordOrder.LOW_HIGH);
-        default -> null;
-      };
+      DataTypeModifier m =
+          switch (s.toUpperCase()) {
+            case "BE" -> new ByteOrderModifier(ByteOrder.BIG_ENDIAN);
+            case "LE" -> new ByteOrderModifier(ByteOrder.LITTLE_ENDIAN);
+            case "HL" -> new WordOrderModifier(WordOrder.HIGH_LOW);
+            case "LH" -> new WordOrderModifier(WordOrder.LOW_HIGH);
+            default -> null;
+          };
 
       if (m != null) {
         set.add(m);
@@ -177,6 +183,4 @@ public class ModbusAddressParser {
 
     return Optional.of(set);
   }
-
-
 }

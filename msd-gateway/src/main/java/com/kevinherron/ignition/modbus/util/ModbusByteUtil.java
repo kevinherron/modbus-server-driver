@@ -16,19 +16,15 @@ public final class ModbusByteUtil {
 
   private ModbusByteUtil() {}
 
-  public static Object getValueForBytes(
-      byte[] registerBytes,
-      ModbusAddress address
-  ) throws UaException {
+  public static Object getValueForBytes(byte[] registerBytes, ModbusAddress address)
+      throws UaException {
 
     return getValueForBytes(registerBytes, address.getDataType(), address.getDataTypeModifiers());
   }
 
   public static Object getValueForBytes(
-      byte[] registerBytes,
-      ModbusDataType dataType,
-      Set<DataTypeModifier> modifiers
-  ) throws UaException {
+      byte[] registerBytes, ModbusDataType dataType, Set<DataTypeModifier> modifiers)
+      throws UaException {
 
     if (dataType instanceof ModbusDataType.Bit d) {
       // read underlying value, check and return specified bit
@@ -78,10 +74,7 @@ public final class ModbusByteUtil {
   }
 
   public static byte[] getBytesForValue(
-      Object value,
-      ModbusDataType dataType,
-      Set<DataTypeModifier> modifiers
-  ) throws UaException {
+      Object value, ModbusDataType dataType, Set<DataTypeModifier> modifiers) throws UaException {
 
     byte[] valueBytes = new byte[dataType.getRegisterCount() * 2];
 
@@ -168,15 +161,16 @@ public final class ModbusByteUtil {
     }
 
     return switch (byteOrder) {
-      case BIG_ENDIAN -> switch (wordOrder) {
-        case HIGH_LOW -> ByteArrayByteOps.BIG_ENDIAN;
-        case LOW_HIGH -> ByteArrayByteOps.BIG_ENDIAN_LOW_HIGH;
-      };
-      case LITTLE_ENDIAN -> switch (wordOrder) {
-        case HIGH_LOW -> ByteArrayByteOps.LITTLE_ENDIAN;
-        case LOW_HIGH -> ByteArrayByteOps.LITTLE_ENDIAN_LOW_HIGH;
-      };
+      case BIG_ENDIAN ->
+          switch (wordOrder) {
+            case HIGH_LOW -> ByteArrayByteOps.BIG_ENDIAN;
+            case LOW_HIGH -> ByteArrayByteOps.BIG_ENDIAN_LOW_HIGH;
+          };
+      case LITTLE_ENDIAN ->
+          switch (wordOrder) {
+            case HIGH_LOW -> ByteArrayByteOps.LITTLE_ENDIAN;
+            case LOW_HIGH -> ByteArrayByteOps.LITTLE_ENDIAN_LOW_HIGH;
+          };
     };
   }
-
 }

@@ -13,27 +13,21 @@ import org.jetbrains.annotations.Nullable;
 
 public class ModbusServerDeviceType extends DeviceType {
 
-  @Serial
-  private static final long serialVersionUID = 1L;
+  @Serial private static final long serialVersionUID = 1L;
 
   ModbusServerDeviceType() {
     super(
         "com.kevinherron.modbus-server-driver",
         "ModbusServer.ModbusServerDeviceType.Name",
-        "ModbusServer.ModbusServerDeviceType.Desc"
-    );
+        "ModbusServer.ModbusServerDeviceType.Desc");
   }
 
   @Override
   public @NotNull Device createDevice(
-      DeviceContext deviceContext,
-      @NotNull DeviceSettingsRecord deviceSettingsRecord
-  ) {
+      DeviceContext deviceContext, @NotNull DeviceSettingsRecord deviceSettingsRecord) {
 
-    ModbusServerDeviceSettings modbusServerSettings = findProfileSettingsRecord(
-        deviceContext.getGatewayContext(),
-        deviceSettingsRecord
-    );
+    ModbusServerDeviceSettings modbusServerSettings =
+        findProfileSettingsRecord(deviceContext.getGatewayContext(), deviceSettingsRecord);
 
     return new ModbusServerDevice(deviceContext, deviceSettingsRecord, modbusServerSettings);
   }
@@ -47,5 +41,4 @@ public class ModbusServerDeviceType extends DeviceType {
   public @Nullable RecordMeta<? extends PersistentRecord> getSettingsRecordType() {
     return ModbusServerDeviceSettings.META;
   }
-
 }
