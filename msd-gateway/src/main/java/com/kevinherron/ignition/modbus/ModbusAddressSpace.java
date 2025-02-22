@@ -269,7 +269,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         yield LocalizedText.english(addr);
       }
       case WriteMask, UserWriteMask -> UInteger.valueOf(0);
-      case DataType -> address.getDataType().getBuiltinDataType().getNodeId();
+      case DataType -> address.getDataType().getOpcUaDataType().getNodeId();
       case ValueRank -> {
         if (address instanceof ModbusAddress.ArrayAddress a) {
           yield a.getDimensions().length;
@@ -459,7 +459,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
 
     Class<?> actualType = variant.getValue().getClass();
-    Class<?> expectedType = dataType.getBuiltinDataType().getBackingClass();
+    Class<?> expectedType = dataType.getOpcUaDataType().getBackingClass();
 
     if (!expectedType.isAssignableFrom(actualType)) {
       throw new UaException(StatusCodes.Bad_TypeMismatch);

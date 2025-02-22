@@ -1,6 +1,6 @@
 package com.kevinherron.ignition.modbus.address;
 
-import org.eclipse.milo.opcua.stack.core.BuiltinDataType;
+import org.eclipse.milo.opcua.stack.core.OpcUaDataType;
 
 public sealed interface ModbusDataType permits
     ModbusDataType.Bit,
@@ -15,14 +15,14 @@ public sealed interface ModbusDataType permits
     ModbusDataType.Double64,
     ModbusDataType.String {
 
-  BuiltinDataType getBuiltinDataType();
+  OpcUaDataType getOpcUaDataType();
 
   int getRegisterCount();
 
   record Bit(ModbusDataType underlyingType, int bit) implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.Boolean;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.Boolean;
     }
 
     @Override
@@ -33,8 +33,8 @@ public sealed interface ModbusDataType permits
 
   final class Bool implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.Boolean;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.Boolean;
     }
 
     @Override
@@ -45,8 +45,8 @@ public sealed interface ModbusDataType permits
 
   final class Int16 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.Int16;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.Int16;
     }
 
     @Override
@@ -57,8 +57,8 @@ public sealed interface ModbusDataType permits
 
   final class Int32 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.Int32;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.Int32;
     }
 
     @Override
@@ -69,8 +69,8 @@ public sealed interface ModbusDataType permits
 
   final class Int64 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.Int64;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.Int64;
     }
 
     @Override
@@ -81,8 +81,8 @@ public sealed interface ModbusDataType permits
 
   final class UInt16 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.UInt16;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.UInt16;
     }
 
     @Override
@@ -93,8 +93,8 @@ public sealed interface ModbusDataType permits
 
   final class UInt32 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.UInt32;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.UInt32;
     }
 
     @Override
@@ -105,8 +105,8 @@ public sealed interface ModbusDataType permits
 
   final class UInt64 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.UInt64;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.UInt64;
     }
 
     @Override
@@ -117,8 +117,8 @@ public sealed interface ModbusDataType permits
 
   final class Float32 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.Float;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.Float;
     }
 
     @Override
@@ -129,8 +129,8 @@ public sealed interface ModbusDataType permits
 
   final class Double64 implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.Double;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.Double;
     }
 
     @Override
@@ -141,8 +141,8 @@ public sealed interface ModbusDataType permits
 
   record String(int length) implements ModbusDataType {
     @Override
-    public BuiltinDataType getBuiltinDataType() {
-      return BuiltinDataType.String;
+    public OpcUaDataType getOpcUaDataType() {
+      return OpcUaDataType.String;
     }
 
     @Override
