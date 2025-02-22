@@ -15,5 +15,4 @@ public sealed interface DataTypeModifier {
     HIGH_LOW,
     LOW_HIGH
   }
-
 }

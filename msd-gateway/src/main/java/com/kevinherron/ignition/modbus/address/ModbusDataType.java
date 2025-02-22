@@ -2,18 +2,18 @@ package com.kevinherron.ignition.modbus.address;
 
 import org.eclipse.milo.opcua.stack.core.OpcUaDataType;
 
-public sealed interface ModbusDataType permits
-    ModbusDataType.Bit,
-    ModbusDataType.Bool,
-    ModbusDataType.Int16,
-    ModbusDataType.Int32,
-    ModbusDataType.Int64,
-    ModbusDataType.UInt16,
-    ModbusDataType.UInt32,
-    ModbusDataType.UInt64,
-    ModbusDataType.Float32,
-    ModbusDataType.Double64,
-    ModbusDataType.String {
+public sealed interface ModbusDataType
+    permits ModbusDataType.Bit,
+        ModbusDataType.Bool,
+        ModbusDataType.Int16,
+        ModbusDataType.Int32,
+        ModbusDataType.Int64,
+        ModbusDataType.UInt16,
+        ModbusDataType.UInt32,
+        ModbusDataType.UInt64,
+        ModbusDataType.Float32,
+        ModbusDataType.Double64,
+        ModbusDataType.String {
 
   OpcUaDataType getOpcUaDataType();
 
@@ -150,5 +150,4 @@ public sealed interface ModbusDataType permits
       return (length + 1) / 2;
     }
   }
-
 }

@@ -71,5 +71,4 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
 
     return List.of(strategy);
   }
-
 }

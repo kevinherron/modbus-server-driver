@@ -114,5 +114,4 @@ class ModbusAddressParserTest {
 
     assertThrows(Exception.class, () -> ModbusAddressParser.parse("256.HR1"));
   }
-
 }
