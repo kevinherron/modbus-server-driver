@@ -104,7 +104,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     return filter;
   }
 
-  //region Browse
+  // region Browse
 
   @Override
   public void browse(BrowseContext context, ViewDescription viewDescription, NodeId nodeId) {
@@ -116,21 +116,18 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     context.success(List.of());
   }
 
-  //endregion
+  // endregion
 
-  //region Read
+  // region Read
 
   @Override
   public void read(
       ReadContext context,
       Double maxAge,
       TimestampsToReturn timestamps,
-      List<ReadValueId> readValueIds
-  ) {
+      List<ReadValueId> readValueIds) {
 
-    List<PendingRead> pendingReads = readValueIds.stream()
-        .map(PendingRead::new)
-        .toList();
+    List<PendingRead> pendingReads = readValueIds.stream().map(PendingRead::new).toList();
 
     for (PendingRead pending : pendingReads) {
       ReadValueId readValueId = pending.readValueId;
@@ -179,129 +176,127 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     ModbusArea area = address.getArea();
 
     return switch (area) {
-      case COILS: {
-        boolean value = device.processImage.get(tx ->
-            tx.readCoils(
-                coilMap ->
-                    coilMap.getOrDefault(address.getOffset(), false)
-            )
-        );
+      case COILS:
+        {
+          boolean value =
+              device.processImage.get(
+                  tx -> tx.readCoils(coilMap -> coilMap.getOrDefault(address.getOffset(), false)));
 
-        yield new Variant(value);
-      }
-      case DISCRETE_INPUTS: {
-        boolean value = device.processImage.get(tx ->
-            tx.readDiscreteInputs(
-                discreteInputMap ->
-                    discreteInputMap.getOrDefault(address.getOffset(), false)
-            )
-        );
+          yield new Variant(value);
+        }
+      case DISCRETE_INPUTS:
+        {
+          boolean value =
+              device.processImage.get(
+                  tx ->
+                      tx.readDiscreteInputs(
+                          discreteInputMap ->
+                              discreteInputMap.getOrDefault(address.getOffset(), false)));
 
-        yield new Variant(value);
-      }
-      case HOLDING_REGISTERS: {
-        //noinspection DuplicatedCode
-        byte[] bs = device.processImage.get(tx ->
-            tx.readHoldingRegisters(holdingRegisterMap -> {
-              var registers = new byte[address.getDataType().getRegisterCount() * 2];
+          yield new Variant(value);
+        }
+      case HOLDING_REGISTERS:
+        {
+          //noinspection DuplicatedCode
+          byte[] bs =
+              device.processImage.get(
+                  tx ->
+                      tx.readHoldingRegisters(
+                          holdingRegisterMap -> {
+                            var registers = new byte[address.getDataType().getRegisterCount() * 2];
 
-              for (int i = 0; i < registers.length / 2; i++) {
-                byte[] value = holdingRegisterMap.getOrDefault(
-                    address.getOffset() + i,
-                    new byte[2]
-                );
-                registers[i * 2] = value[0];
-                registers[i * 2 + 1] = value[1];
-              }
+                            for (int i = 0; i < registers.length / 2; i++) {
+                              byte[] value =
+                                  holdingRegisterMap.getOrDefault(
+                                      address.getOffset() + i, new byte[2]);
+                              registers[i * 2] = value[0];
+                              registers[i * 2 + 1] = value[1];
+                            }
 
-              return registers;
-            })
-        );
+                            return registers;
+                          }));
 
-        yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
-      }
+          yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
+        }
       case INPUT_REGISTERS:
         //noinspection DuplicatedCode
-        byte[] bs = device.processImage.get(tx ->
-            tx.readInputRegisters(inputRegisterMap -> {
-              var registers = new byte[address.getDataType().getRegisterCount() * 2];
+        byte[] bs =
+            device.processImage.get(
+                tx ->
+                    tx.readInputRegisters(
+                        inputRegisterMap -> {
+                          var registers = new byte[address.getDataType().getRegisterCount() * 2];
 
-              for (int i = 0; i < registers.length / 2; i++) {
-                byte[] value = inputRegisterMap.getOrDefault(
-                    address.getOffset() + i,
-                    new byte[2]
-                );
-                registers[i * 2] = value[0];
-                registers[i * 2 + 1] = value[1];
-              }
+                          for (int i = 0; i < registers.length / 2; i++) {
+                            byte[] value =
+                                inputRegisterMap.getOrDefault(address.getOffset() + i, new byte[2]);
+                            registers[i * 2] = value[0];
+                            registers[i * 2 + 1] = value[1];
+                          }
 
-              return registers;
-            })
-        );
+                          return registers;
+                        }));
 
         yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
     };
   }
 
   private Variant readNonValueAttribute(
-      NodeId nodeId,
-      AttributeId attributeId,
-      ModbusAddress address
-  ) throws UaException {
+      NodeId nodeId, AttributeId attributeId, ModbusAddress address) throws UaException {
 
-    Object o = switch (attributeId) {
-      case NodeId -> nodeId;
-      case NodeClass -> NodeClass.Variable;
-      case BrowseName -> {
-        String id = nodeId.getIdentifier().toString();
-        String addr = id.substring(device.getName().length() + 2);
-        yield device.deviceContext.qualifiedName(addr);
-      }
-      case DisplayName, Description -> {
-        String id = nodeId.getIdentifier().toString();
-        String addr = id.substring(device.getName().length() + 2);
-        yield LocalizedText.english(addr);
-      }
-      case WriteMask, UserWriteMask -> UInteger.valueOf(0);
-      case DataType -> address.getDataType().getBuiltinDataType().getNodeId();
-      case ValueRank -> {
-        if (address instanceof ModbusAddress.ArrayAddress a) {
-          yield a.getDimensions().length;
-        } else {
-          yield ValueRank.Scalar.getValue();
-        }
-      }
-      case ArrayDimensions -> {
-        if (address instanceof ModbusAddress.ArrayAddress a) {
-          yield Arrays.stream(a.getDimensions()).mapToObj(Unsigned::uint).toArray();
-        } else {
-          yield null;
-        }
-      }
+    Object o =
+        switch (attributeId) {
+          case NodeId -> nodeId;
+          case NodeClass -> NodeClass.Variable;
+          case BrowseName -> {
+            String id = nodeId.getIdentifier().toString();
+            String addr = id.substring(device.getName().length() + 2);
+            yield device.deviceContext.qualifiedName(addr);
+          }
+          case DisplayName, Description -> {
+            String id = nodeId.getIdentifier().toString();
+            String addr = id.substring(device.getName().length() + 2);
+            yield LocalizedText.english(addr);
+          }
+          case WriteMask, UserWriteMask -> UInteger.valueOf(0);
+          case DataType -> address.getDataType().getBuiltinDataType().getNodeId();
+          case ValueRank -> {
+            if (address instanceof ModbusAddress.ArrayAddress a) {
+              yield a.getDimensions().length;
+            } else {
+              yield ValueRank.Scalar.getValue();
+            }
+          }
+          case ArrayDimensions -> {
+            if (address instanceof ModbusAddress.ArrayAddress a) {
+              yield Arrays.stream(a.getDimensions()).mapToObj(Unsigned::uint).toArray();
+            } else {
+              yield null;
+            }
+          }
 
-      // All areas are Read/Write from the OPC UA side, otherwise nothing would be able to
-      // update IR and DI values!
-      case AccessLevel, UserAccessLevel -> AccessLevel.toValue(AccessLevel.READ_WRITE);
+          // All areas are Read/Write from the OPC UA side, otherwise nothing would be able to
+          // update IR and DI values!
+          case AccessLevel, UserAccessLevel -> AccessLevel.toValue(AccessLevel.READ_WRITE);
 
-      case Value ->
-          throw new UaException(StatusCodes.Bad_InternalError, "attributeId: " + attributeId);
+          case Value ->
+              throw new UaException(StatusCodes.Bad_InternalError, "attributeId: " + attributeId);
 
-      default ->
-          throw new UaException(StatusCodes.Bad_AttributeIdInvalid, "attributeId: " + attributeId);
-    };
+          default ->
+              throw new UaException(
+                  StatusCodes.Bad_AttributeIdInvalid, "attributeId: " + attributeId);
+        };
 
     return new Variant(o);
   }
 
-  //endregion
+  // endregion
 
-  //region Write
+  // region Write
 
   @Override
   public void write(WriteContext context, List<WriteValue> writeValues) {
-    var pendingWrites = writeValues.stream()
-        .map(PendingWrite::new)
-        .toList();
+    var pendingWrites = writeValues.stream().map(PendingWrite::new).toList();
 
     var pendingValueWrites = new ArrayList<PendingValueWrite>();
 
@@ -355,22 +350,18 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     switch (address.getArea()) {
       case COILS -> {
         if (variant.getValue() instanceof Boolean b) {
-          device.processImage.with(tx ->
-              tx.writeCoils(
-                  coilMap -> coilMap.put(address.getOffset(), b)
-              )
-          );
+          device.processImage.with(
+              tx -> tx.writeCoils(coilMap -> coilMap.put(address.getOffset(), b)));
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
       }
       case DISCRETE_INPUTS -> {
         if (variant.getValue() instanceof Boolean b) {
-          device.processImage.with(tx ->
-              tx.writeDiscreteInputs(
-                  discreteInputMap -> discreteInputMap.put(address.getOffset(), b)
-              )
-          );
+          device.processImage.with(
+              tx ->
+                  tx.writeDiscreteInputs(
+                      discreteInputMap -> discreteInputMap.put(address.getOffset(), b)));
         } else {
           throw new UaException(StatusCodes.Bad_TypeMismatch);
         }
@@ -379,60 +370,56 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         checkDataType(address.getDataType(), variant);
 
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          device.processImage.with(tx ->
-              tx.writeHoldingRegisters(
-                  holdingRegisterMap -> {
-                    try {
-                      writeBitToRegister(address, variant, dataType, holdingRegisterMap);
-                    } catch (UaException e) {
-                      throw new RuntimeException(e);
-                    }
-                  }
-              )
-          );
+          device.processImage.with(
+              tx ->
+                  tx.writeHoldingRegisters(
+                      holdingRegisterMap -> {
+                        try {
+                          writeBitToRegister(address, variant, dataType, holdingRegisterMap);
+                        } catch (UaException e) {
+                          throw new RuntimeException(e);
+                        }
+                      }));
         } else {
           byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          device.processImage.with(tx ->
-              tx.writeHoldingRegisters(
-                  holdingRegisterMap -> {
-                    for (int i = 0; i < registers.length / 2; i++) {
-                      byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
-                      holdingRegisterMap.put(address.getOffset() + i, value);
-                    }
-                  }
-              )
-          );
+          device.processImage.with(
+              tx ->
+                  tx.writeHoldingRegisters(
+                      holdingRegisterMap -> {
+                        for (int i = 0; i < registers.length / 2; i++) {
+                          byte[] value = new byte[] {registers[i * 2], registers[i * 2 + 1]};
+                          holdingRegisterMap.put(address.getOffset() + i, value);
+                        }
+                      }));
         }
       }
       case INPUT_REGISTERS -> {
         checkDataType(address.getDataType(), variant);
 
         if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          device.processImage.with(tx ->
-              tx.writeInputRegisters(
-                  inputRegisterMap -> {
-                    try {
-                      writeBitToRegister(address, variant, dataType, inputRegisterMap);
-                    } catch (UaException e) {
-                      throw new RuntimeException(e);
-                    }
-                  }
-              )
-          );
+          device.processImage.with(
+              tx ->
+                  tx.writeInputRegisters(
+                      inputRegisterMap -> {
+                        try {
+                          writeBitToRegister(address, variant, dataType, inputRegisterMap);
+                        } catch (UaException e) {
+                          throw new RuntimeException(e);
+                        }
+                      }));
         } else {
           byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
 
-          device.processImage.with(tx ->
-              tx.writeInputRegisters(
-                  inputRegisterMap -> {
-                    for (int i = 0; i < registers.length / 2; i++) {
-                      byte[] value = new byte[]{registers[i * 2], registers[i * 2 + 1]};
-                      inputRegisterMap.put(address.getOffset() + i, value);
-                    }
-                  }
-              )
-          );
+          device.processImage.with(
+              tx ->
+                  tx.writeInputRegisters(
+                      inputRegisterMap -> {
+                        for (int i = 0; i < registers.length / 2; i++) {
+                          byte[] value = new byte[] {registers[i * 2], registers[i * 2 + 1]};
+                          inputRegisterMap.put(address.getOffset() + i, value);
+                        }
+                      }));
         }
       }
       default -> throw new IllegalArgumentException("area: " + address.getArea());
@@ -464,8 +451,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       ModbusAddress address,
       Variant variant,
       ModbusDataType.Bit dataType,
-      Map<Integer, byte[]> registerMap
-  ) throws UaException {
+      Map<Integer, byte[]> registerMap)
+      throws UaException {
 
     int bitIndex = dataType.bit();
     ModbusDataType underlyingType = dataType.underlyingType();
@@ -478,11 +465,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       bytes[i * 2 + 1] = value[1];
     }
 
-    Object underlyingValue = ModbusByteUtil.getValueForBytes(
-        bytes,
-        underlyingType,
-        address.getDataTypeModifiers()
-    );
+    Object underlyingValue =
+        ModbusByteUtil.getValueForBytes(bytes, underlyingType, address.getDataTypeModifiers());
 
     if (underlyingValue instanceof Number n) {
       long mask = 1L << bitIndex;
@@ -493,14 +477,14 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         } else {
           v &= ~mask;
         }
-        byte[] newBytes = ModbusByteUtil.getBytesForValue(
-            castToUnderlying(v, underlyingType),
-            underlyingType,
-            address.getDataTypeModifiers()
-        );
+        byte[] newBytes =
+            ModbusByteUtil.getBytesForValue(
+                castToUnderlying(v, underlyingType),
+                underlyingType,
+                address.getDataTypeModifiers());
 
         for (int i = 0; i < newBytes.length / 2; i++) {
-          byte[] value = new byte[]{newBytes[i * 2], newBytes[i * 2 + 1]};
+          byte[] value = new byte[] {newBytes[i * 2], newBytes[i * 2 + 1]};
           registerMap.put(address.getOffset() + i, value);
         }
       } else {
@@ -529,9 +513,9 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
   }
 
-  //endregion
+  // endregion
 
-  //region Subscribe
+  // region Subscribe
 
   @Override
   public void onDataItemsCreated(List<DataItem> items) {
@@ -553,102 +537,106 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     subscriptionModel.onMonitoringModeChanged(items);
   }
 
-  //endregion
+  // endregion
 
-  //region ProcessImage Load/Save
+  // region ProcessImage Load/Save
 
   private void loadProcessImage() {
-    device.processImage.with(tx -> {
-      loadCoils(tx);
-      loadDiscreteInputs(tx);
-      loadHoldingRegisters(tx);
-      loadInputRegisters(tx);
-    });
+    device.processImage.with(
+        tx -> {
+          loadCoils(tx);
+          loadDiscreteInputs(tx);
+          loadHoldingRegisters(tx);
+          loadInputRegisters(tx);
+        });
   }
 
   private void loadCoils(Transaction tx) {
-    Path path = device.deviceContext.getDeviceFolderPath()
-        .resolve("coils.bin").toAbsolutePath();
+    Path path = device.deviceContext.getDeviceFolderPath().resolve("coils.bin").toAbsolutePath();
 
     try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
       coilsFile.setLength(65535);
       byte[] coils = new byte[65535];
       coilsFile.readFully(coils);
 
-      tx.writeCoils(coilMap -> {
-        for (int i = 0; i < coils.length; i++) {
-          if (coils[i] != 0) {
-            coilMap.put(i, true);
-          }
-        }
-      });
+      tx.writeCoils(
+          coilMap -> {
+            for (int i = 0; i < coils.length; i++) {
+              if (coils[i] != 0) {
+                coilMap.put(i, true);
+              }
+            }
+          });
     } catch (IOException e) {
       logger.error("Error reading coils.bin", e);
     }
   }
 
   private void loadDiscreteInputs(Transaction tx) {
-    Path path = device.deviceContext.getDeviceFolderPath()
-        .resolve("discreteInputs.bin").toAbsolutePath();
+    Path path =
+        device.deviceContext.getDeviceFolderPath().resolve("discreteInputs.bin").toAbsolutePath();
 
     try (var discreteInputsFile = new RandomAccessFile(path.toFile(), "rw")) {
       discreteInputsFile.setLength(65535);
       byte[] discreteInputs = new byte[65535];
       discreteInputsFile.readFully(discreteInputs);
 
-      tx.writeDiscreteInputs(discreteInputMap -> {
-        for (int i = 0; i < discreteInputs.length; i++) {
-          if (discreteInputs[i] != 0) {
-            discreteInputMap.put(i, true);
-          }
-        }
-      });
+      tx.writeDiscreteInputs(
+          discreteInputMap -> {
+            for (int i = 0; i < discreteInputs.length; i++) {
+              if (discreteInputs[i] != 0) {
+                discreteInputMap.put(i, true);
+              }
+            }
+          });
     } catch (IOException e) {
       logger.error("Error reading discreteInputs.bin", e);
     }
   }
 
   private void loadHoldingRegisters(Transaction tx) {
-    Path path = device.deviceContext.getDeviceFolderPath()
-        .resolve("holdingRegisters.bin").toAbsolutePath();
+    Path path =
+        device.deviceContext.getDeviceFolderPath().resolve("holdingRegisters.bin").toAbsolutePath();
 
     try (var holdingRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
       holdingRegistersFile.setLength(65535 * 2);
       byte[] holdingRegisters = new byte[65535 * 2];
       holdingRegistersFile.readFully(holdingRegisters);
 
-      tx.writeHoldingRegisters(holdingRegisterMap -> {
-        for (int i = 0; i < holdingRegisters.length; i += 2) {
-          byte high = holdingRegisters[i];
-          byte low = holdingRegisters[i + 1];
-          if (high != 0 || low != 0) {
-            holdingRegisterMap.put(i / 2, new byte[]{high, low});
-          }
-        }
-      });
+      tx.writeHoldingRegisters(
+          holdingRegisterMap -> {
+            for (int i = 0; i < holdingRegisters.length; i += 2) {
+              byte high = holdingRegisters[i];
+              byte low = holdingRegisters[i + 1];
+              if (high != 0 || low != 0) {
+                holdingRegisterMap.put(i / 2, new byte[] {high, low});
+              }
+            }
+          });
     } catch (IOException e) {
       logger.error("Error reading holdingRegisters.bin", e);
     }
   }
 
   private void loadInputRegisters(Transaction tx) {
-    Path path = device.deviceContext.getDeviceFolderPath()
-        .resolve("inputRegisters.bin").toAbsolutePath();
+    Path path =
+        device.deviceContext.getDeviceFolderPath().resolve("inputRegisters.bin").toAbsolutePath();
 
     try (var inputRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
       inputRegistersFile.setLength(65535 * 2);
       byte[] inputRegisters = new byte[65535 * 2];
       inputRegistersFile.readFully(inputRegisters);
 
-      tx.writeInputRegisters(inputRegisterMap -> {
-        for (int i = 0; i < inputRegisters.length; i += 2) {
-          byte high = inputRegisters[i];
-          byte low = inputRegisters[i + 1];
-          if (high != 0 || low != 0) {
-            inputRegisterMap.put(i / 2, new byte[]{high, low});
-          }
-        }
-      });
+      tx.writeInputRegisters(
+          inputRegisterMap -> {
+            for (int i = 0; i < inputRegisters.length; i += 2) {
+              byte high = inputRegisters[i];
+              byte low = inputRegisters[i + 1];
+              if (high != 0 || low != 0) {
+                inputRegisterMap.put(i / 2, new byte[] {high, low});
+              }
+            }
+          });
     } catch (IOException e) {
       logger.error("Error reading inputRegisters.bin", e);
     }
@@ -660,85 +648,100 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
     @Override
     public void onCoilsModified(List<CoilModification> modifications) {
-      modificationQueue.submit(() -> {
-        logger.trace("onCoilsModified: {}", modifications);
+      modificationQueue.submit(
+          () -> {
+            logger.trace("onCoilsModified: {}", modifications);
 
-        Path path = device.deviceContext.getDeviceFolderPath()
-            .resolve("coils.bin").toAbsolutePath();
+            Path path =
+                device.deviceContext.getDeviceFolderPath().resolve("coils.bin").toAbsolutePath();
 
-        try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
-          for (CoilModification m : modifications) {
-            coilsFile.seek(m.address());
-            coilsFile.write(m.value() ? 1 : 0);
-          }
-        } catch (IOException e) {
-          logger.error("Error writing coils.bin", e);
-        }
-      });
+            try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
+              for (CoilModification m : modifications) {
+                coilsFile.seek(m.address());
+                coilsFile.write(m.value() ? 1 : 0);
+              }
+            } catch (IOException e) {
+              logger.error("Error writing coils.bin", e);
+            }
+          });
     }
 
     @Override
     public void onDiscreteInputsModified(List<DiscreteInputModification> modifications) {
-      modificationQueue.submit(() -> {
-        logger.trace("onDiscreteInputsModified: {}", modifications);
+      modificationQueue.submit(
+          () -> {
+            logger.trace("onDiscreteInputsModified: {}", modifications);
 
-        Path path = device.deviceContext.getDeviceFolderPath()
-            .resolve("discreteInputs.bin").toAbsolutePath();
+            Path path =
+                device
+                    .deviceContext
+                    .getDeviceFolderPath()
+                    .resolve("discreteInputs.bin")
+                    .toAbsolutePath();
 
-        try (var discreteInputsFile = new RandomAccessFile(path.toFile(), "rw")) {
-          for (DiscreteInputModification m : modifications) {
-            discreteInputsFile.seek(m.address());
-            discreteInputsFile.write(m.value() ? 1 : 0);
-          }
-        } catch (IOException e) {
-          logger.error("Error writing discreteInputs.bin", e);
-        }
-      });
+            try (var discreteInputsFile = new RandomAccessFile(path.toFile(), "rw")) {
+              for (DiscreteInputModification m : modifications) {
+                discreteInputsFile.seek(m.address());
+                discreteInputsFile.write(m.value() ? 1 : 0);
+              }
+            } catch (IOException e) {
+              logger.error("Error writing discreteInputs.bin", e);
+            }
+          });
     }
 
     @Override
     public void onHoldingRegistersModified(List<HoldingRegisterModification> modifications) {
-      modificationQueue.submit(() -> {
-        logger.trace("onHoldingRegistersModified: {}", modifications);
+      modificationQueue.submit(
+          () -> {
+            logger.trace("onHoldingRegistersModified: {}", modifications);
 
-        Path path = device.deviceContext.getDeviceFolderPath()
-            .resolve("holdingRegisters.bin").toAbsolutePath();
+            Path path =
+                device
+                    .deviceContext
+                    .getDeviceFolderPath()
+                    .resolve("holdingRegisters.bin")
+                    .toAbsolutePath();
 
-        try (var holdingRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
-          for (HoldingRegisterModification m : modifications) {
-            holdingRegistersFile.seek(m.address() * 2L);
-            holdingRegistersFile.writeByte(m.value()[0]);
-            holdingRegistersFile.writeByte(m.value()[1]);
-          }
-        } catch (IOException e) {
-          logger.error("Error writing holdingRegisters.bin", e);
-        }
-      });
+            try (var holdingRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
+              for (HoldingRegisterModification m : modifications) {
+                holdingRegistersFile.seek(m.address() * 2L);
+                holdingRegistersFile.writeByte(m.value()[0]);
+                holdingRegistersFile.writeByte(m.value()[1]);
+              }
+            } catch (IOException e) {
+              logger.error("Error writing holdingRegisters.bin", e);
+            }
+          });
     }
 
     @Override
     public void onInputRegistersModified(List<InputRegisterModification> modifications) {
-      modificationQueue.submit(() -> {
-        logger.trace("onInputRegistersModified: {}", modifications);
+      modificationQueue.submit(
+          () -> {
+            logger.trace("onInputRegistersModified: {}", modifications);
 
-        Path path = device.deviceContext.getDeviceFolderPath()
-            .resolve("inputRegisters.bin").toAbsolutePath();
+            Path path =
+                device
+                    .deviceContext
+                    .getDeviceFolderPath()
+                    .resolve("inputRegisters.bin")
+                    .toAbsolutePath();
 
-        try (var inputRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
-          for (InputRegisterModification m : modifications) {
-            inputRegistersFile.seek(m.address() * 2L);
-            inputRegistersFile.writeByte(m.value()[0]);
-            inputRegistersFile.writeByte(m.value()[1]);
-          }
-        } catch (IOException e) {
-          logger.error("Error writing inputRegisters.bin", e);
-        }
-      });
+            try (var inputRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
+              for (InputRegisterModification m : modifications) {
+                inputRegistersFile.seek(m.address() * 2L);
+                inputRegistersFile.writeByte(m.value()[0]);
+                inputRegistersFile.writeByte(m.value()[1]);
+              }
+            } catch (IOException e) {
+              logger.error("Error writing inputRegisters.bin", e);
+            }
+          });
     }
-
   }
 
-  //endregion
+  // endregion
 
   private static class PendingRead {
 
@@ -801,7 +804,5 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         return false;
       }
     }
-
   }
-
 }

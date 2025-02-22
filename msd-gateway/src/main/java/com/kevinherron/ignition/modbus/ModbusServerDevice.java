@@ -25,12 +25,13 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
 
   final ProcessImage processImage = new ProcessImage();
 
-  final ReadWriteModbusServices services = new ReadWriteModbusServices() {
-    @Override
-    protected Optional<ProcessImage> getProcessImage(int unitId) {
-      return Optional.of(processImage);
-    }
-  };
+  final ReadWriteModbusServices services =
+      new ReadWriteModbusServices() {
+        @Override
+        protected Optional<ProcessImage> getProcessImage(int unitId) {
+          return Optional.of(processImage);
+        }
+      };
 
   private BrowsableAddressSpace browsableAddressSpace;
   private ModbusAddressSpace modbusAddressSpace;
@@ -42,8 +43,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   public ModbusServerDevice(
       DeviceContext deviceContext,
       DeviceSettingsRecord deviceSettings,
-      ModbusServerDeviceSettings modbusServerSettings
-  ) {
+      ModbusServerDeviceSettings modbusServerSettings) {
 
     super(deviceContext.getServer());
 
@@ -69,14 +69,15 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
 
   @Override
   public void startup() {
-    var transport = new NettyTcpServerTransport(
-        NettyServerTransportConfig.create(cfg -> {
-          cfg.bindAddress = modbusServerSettings.getBindAddress();
-          cfg.port = modbusServerSettings.getPort();
-          cfg.executor = OpcUa.SHARED_EXECUTOR;
-          cfg.eventLoopGroup = OpcUa.SHARED_EVENT_LOOP;
-        })
-    );
+    var transport =
+        new NettyTcpServerTransport(
+            NettyServerTransportConfig.create(
+                cfg -> {
+                  cfg.bindAddress = modbusServerSettings.getBindAddress();
+                  cfg.port = modbusServerSettings.getPort();
+                  cfg.executor = OpcUa.SHARED_EXECUTOR;
+                  cfg.eventLoopGroup = OpcUa.SHARED_EVENT_LOOP;
+                }));
 
     server = ModbusTcpServer.create(transport, services);
 
@@ -88,8 +89,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
       logger.info(
           "Modbus server listening on {}:{}",
           modbusServerSettings.getBindAddress(),
-          modbusServerSettings.getPort()
-      );
+          modbusServerSettings.getPort());
 
       browsableAddressSpace = new BrowsableAddressSpace(deviceContext.getServer(), this);
       browsableAddressSpace.startup();
@@ -128,5 +128,4 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
       }
     }
   }
-
 }

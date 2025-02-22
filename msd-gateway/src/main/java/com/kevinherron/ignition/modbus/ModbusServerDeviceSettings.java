@@ -13,8 +13,7 @@ import simpleorm.dataset.SFieldFlags;
 
 public class ModbusServerDeviceSettings extends PersistentRecord {
 
-  @Serial
-  private static final long serialVersionUID = 1L;
+  @Serial private static final long serialVersionUID = 1L;
 
   public static final RecordMeta<ModbusServerDeviceSettings> META =
       new RecordMeta<>(ModbusServerDeviceSettings.class, "ModbusServerDeviceSettings");
@@ -28,14 +27,12 @@ public class ModbusServerDeviceSettings extends PersistentRecord {
   public static final StringField BIND_ADDRESS =
       new StringField(META, "BindAddress", SFieldFlags.SMANDATORY);
 
-  public static final IntField PORT =
-      new IntField(META, "Port", SFieldFlags.SMANDATORY);
+  public static final IntField PORT = new IntField(META, "Port", SFieldFlags.SMANDATORY);
 
   public static final BooleanField PERSIST_DATA =
       new BooleanField(META, "PersistData", SFieldFlags.SMANDATORY);
 
-  public static final StringField COIL_BROWSE_RANGES =
-      new StringField(META, "CoilBrowseRanges");
+  public static final StringField COIL_BROWSE_RANGES = new StringField(META, "CoilBrowseRanges");
 
   public static final StringField DISCRETE_INPUT_BROWSE_RANGES =
       new StringField(META, "DiscreteInputBrowseRanges");
@@ -89,5 +86,4 @@ public class ModbusServerDeviceSettings extends PersistentRecord {
   public String getInputRegisterBrowseRanges() {
     return getString(INPUT_REGISTER_BROWSE_RANGES);
   }
-
 }

@@ -17,8 +17,7 @@ public abstract sealed class ModbusAddress {
       ModbusArea area,
       int offset,
       ModbusDataType dataType,
-      Set<DataTypeModifier> dataTypeModifiers
-  ) {
+      Set<DataTypeModifier> dataTypeModifiers) {
 
     this.unitId = unitId;
     this.area = area;
@@ -47,7 +46,6 @@ public abstract sealed class ModbusAddress {
     return dataTypeModifiers;
   }
 
-
   public static final class ArrayAddress extends ModbusAddress {
 
     private final int[] dimensions;
@@ -58,8 +56,7 @@ public abstract sealed class ModbusAddress {
         int address,
         ModbusDataType dataType,
         Set<DataTypeModifier> dataTypeModifiers,
-        int[] dimensions
-    ) {
+        int[] dimensions) {
 
       super(unitId, area, address, dataType, dataTypeModifiers);
 
@@ -69,7 +66,6 @@ public abstract sealed class ModbusAddress {
     public int[] getDimensions() {
       return dimensions;
     }
-
   }
 
   public static final class ScalarAddress extends ModbusAddress {
@@ -79,12 +75,10 @@ public abstract sealed class ModbusAddress {
         ModbusArea area,
         int address,
         ModbusDataType dataType,
-        Set<DataTypeModifier> dataTypeModifiers
-    ) {
+        Set<DataTypeModifier> dataTypeModifiers) {
 
       super(unitId, area, address, dataType, dataTypeModifiers);
     }
-
   }
 
   public enum ModbusArea {
@@ -93,5 +87,4 @@ public abstract sealed class ModbusAddress {
     HOLDING_REGISTERS,
     INPUT_REGISTERS
   }
-
 }
