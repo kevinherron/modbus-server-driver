@@ -145,11 +145,9 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
             device.deviceConfig.browsing().holdingRegisterBrowseRanges();
 
         if (holdingRegisterBrowseRanges != null && !holdingRegisterBrowseRanges.isEmpty()) {
-          yield ReferenceResult.of(createRegisterFolderReferences(
-              nodeId,
-              "_HR%d_",
-              parseRanges(holdingRegisterBrowseRanges)
-          ));
+          yield ReferenceResult.of(
+              createRegisterFolderReferences(
+                  nodeId, "_HR%d_", parseRanges(holdingRegisterBrowseRanges)));
         } else {
           yield ReferenceResult.of(List.of());
         }
@@ -159,11 +157,9 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
             device.deviceConfig.browsing().inputRegisterBrowseRanges();
 
         if (inputRegisterBrowseRanges != null && !inputRegisterBrowseRanges.isEmpty()) {
-          yield ReferenceResult.of(createRegisterFolderReferences(
-              nodeId,
-              "_IR%d_",
-              parseRanges(inputRegisterBrowseRanges)
-          ));
+          yield ReferenceResult.of(
+              createRegisterFolderReferences(
+                  nodeId, "_IR%d_", parseRanges(inputRegisterBrowseRanges)));
         } else {
           yield ReferenceResult.of(List.of());
         }
@@ -194,10 +190,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
         NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
         references.add(
             new Reference(
-                nodeId,
-                NodeIds.HasComponent,
-                childNodeId.expanded(),
-                Reference.Direction.FORWARD));
+                nodeId, NodeIds.HasComponent, childNodeId.expanded(), Reference.Direction.FORWARD));
       }
     }
 
@@ -250,12 +243,11 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
         DataValue value =
             AttributeReader.readAttribute(
                 context,
-            node,
-            readValueId.getAttributeId(),
-            timestamps,
-            readValueId.getIndexRange(),
-            readValueId.getDataEncoding()
-        );
+                node,
+                readValueId.getAttributeId(),
+                timestamps,
+                readValueId.getIndexRange(),
+                readValueId.getDataEncoding());
 
         values.add(value);
       } else {

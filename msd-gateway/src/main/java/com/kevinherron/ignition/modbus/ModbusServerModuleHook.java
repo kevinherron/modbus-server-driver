@@ -39,35 +39,33 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
   @Override
   public List<IdbMigrationStrategy> getRecordMigrationStrategies() {
     @SuppressWarnings("deprecation")
-    var strategy = ExtensionPointRecordMigrationStrategy
-        .newBuilder("com.kevinherron.modbus-server-driver")
-        .resourceType(DeviceExtensionPoint.DEVICE_RESOURCE_TYPE)
-        .profileMeta(DeviceSettingsRecord.META)
-        .settingsMeta(ModbusServerDeviceSettings.META)
-        .settingsRecordForeignKey(ModbusServerDeviceSettings.DEVICE_SETTINGS)
-        .settingsEncoder(encoder ->
-            encoder.withCustomFieldName(
-                    ModbusServerDeviceSettings.BIND_ADDRESS,
-                    "connectivity.bindAddress")
-                .withCustomFieldName(
-                    ModbusServerDeviceSettings.PORT,
-                    "connectivity.port")
-                .withCustomFieldName(
-                    ModbusServerDeviceSettings.PERSIST_DATA,
-                    "persistence.persistData")
-                .withCustomFieldName(
-                    ModbusServerDeviceSettings.COIL_BROWSE_RANGES,
-                    "browsing.coilBrowseRanges")
-                .withCustomFieldName(
-                    ModbusServerDeviceSettings.DISCRETE_INPUT_BROWSE_RANGES,
-                    "browsing.discreteInputBrowseRanges")
-                .withCustomFieldName(
-                    ModbusServerDeviceSettings.HOLDING_REGISTER_BROWSE_RANGES,
-                    "browsing.holdingRegisterBrowseRanges")
-                .withCustomFieldName(
-                    ModbusServerDeviceSettings.INPUT_REGISTER_BROWSE_RANGES,
-                    "browsing.inputRegisterBrowseRanges"))
-        .build();
+    var strategy =
+        ExtensionPointRecordMigrationStrategy.newBuilder("com.kevinherron.modbus-server-driver")
+            .resourceType(DeviceExtensionPoint.DEVICE_RESOURCE_TYPE)
+            .profileMeta(DeviceSettingsRecord.META)
+            .settingsMeta(ModbusServerDeviceSettings.META)
+            .settingsRecordForeignKey(ModbusServerDeviceSettings.DEVICE_SETTINGS)
+            .settingsEncoder(
+                encoder ->
+                    encoder
+                        .withCustomFieldName(
+                            ModbusServerDeviceSettings.BIND_ADDRESS, "connectivity.bindAddress")
+                        .withCustomFieldName(ModbusServerDeviceSettings.PORT, "connectivity.port")
+                        .withCustomFieldName(
+                            ModbusServerDeviceSettings.PERSIST_DATA, "persistence.persistData")
+                        .withCustomFieldName(
+                            ModbusServerDeviceSettings.COIL_BROWSE_RANGES,
+                            "browsing.coilBrowseRanges")
+                        .withCustomFieldName(
+                            ModbusServerDeviceSettings.DISCRETE_INPUT_BROWSE_RANGES,
+                            "browsing.discreteInputBrowseRanges")
+                        .withCustomFieldName(
+                            ModbusServerDeviceSettings.HOLDING_REGISTER_BROWSE_RANGES,
+                            "browsing.holdingRegisterBrowseRanges")
+                        .withCustomFieldName(
+                            ModbusServerDeviceSettings.INPUT_REGISTER_BROWSE_RANGES,
+                            "browsing.inputRegisterBrowseRanges"))
+            .build();
 
     return List.of(strategy);
   }

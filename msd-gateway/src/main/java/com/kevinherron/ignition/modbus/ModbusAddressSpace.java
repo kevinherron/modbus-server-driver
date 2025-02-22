@@ -107,7 +107,6 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   // region Browse
 
-
   @Override
   public List<ReferenceResult> browse(
       BrowseContext context, ViewDescription viewDescription, List<NodeId> nodeIds) {

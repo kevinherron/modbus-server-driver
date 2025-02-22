@@ -37,9 +37,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   final DeviceContext deviceContext;
   final ModbusServerDeviceConfig deviceConfig;
 
-  public ModbusServerDevice(
-      DeviceContext deviceContext,
-      ModbusServerDeviceConfig deviceConfig) {
+  public ModbusServerDevice(DeviceContext deviceContext, ModbusServerDeviceConfig deviceConfig) {
 
     super(deviceContext.getServer());
 
@@ -83,9 +81,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
       modbusAddressSpace.startup();
 
       onDataItemsCreated(
-          deviceContext.getSubscriptionModel()
-              .getDataItems(deviceContext.getName())
-      );
+          deviceContext.getSubscriptionModel().getDataItems(deviceContext.getName()));
     } catch (ExecutionException e) {
       status = "Error";
       logger.error("Error starting Modbus server", e);
