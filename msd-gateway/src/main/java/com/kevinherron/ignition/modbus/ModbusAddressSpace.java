@@ -181,69 +181,56 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     ModbusArea area = address.getArea();
 
     return switch (area) {
-      case COILS:
-        {
-          boolean value =
-              device.processImage.get(
-                  tx -> tx.readCoils(coilMap -> coilMap.getOrDefault(address.getOffset(), false)));
+      case COILS -> {
+        boolean value = device.processImage.get(tx -> readCoil(tx, address));
 
-          yield new Variant(value);
-        }
-      case DISCRETE_INPUTS:
-        {
-          boolean value =
-              device.processImage.get(
-                  tx ->
-                      tx.readDiscreteInputs(
-                          discreteInputMap ->
-                              discreteInputMap.getOrDefault(address.getOffset(), false)));
+        yield new Variant(value);
+      }
+      case DISCRETE_INPUTS -> {
+        boolean value = device.processImage.get(tx -> readDiscreteInput(tx, address));
 
-          yield new Variant(value);
-        }
-      case HOLDING_REGISTERS:
-        {
-          //noinspection DuplicatedCode
-          byte[] bs =
-              device.processImage.get(
-                  tx ->
-                      tx.readHoldingRegisters(
-                          holdingRegisterMap -> {
-                            var registers = new byte[address.getDataType().getRegisterCount() * 2];
-
-                            for (int i = 0; i < registers.length / 2; i++) {
-                              byte[] value =
-                                  holdingRegisterMap.getOrDefault(
-                                      address.getOffset() + i, new byte[2]);
-                              registers[i * 2] = value[0];
-                              registers[i * 2 + 1] = value[1];
-                            }
-
-                            return registers;
-                          }));
-
-          yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
-        }
-      case INPUT_REGISTERS:
-        //noinspection DuplicatedCode
-        byte[] bs =
-            device.processImage.get(
-                tx ->
-                    tx.readInputRegisters(
-                        inputRegisterMap -> {
-                          var registers = new byte[address.getDataType().getRegisterCount() * 2];
-
-                          for (int i = 0; i < registers.length / 2; i++) {
-                            byte[] value =
-                                inputRegisterMap.getOrDefault(address.getOffset() + i, new byte[2]);
-                            registers[i * 2] = value[0];
-                            registers[i * 2 + 1] = value[1];
-                          }
-
-                          return registers;
-                        }));
+        yield new Variant(value);
+      }
+      case HOLDING_REGISTERS -> {
+        byte[] bs = device.processImage.get(tx -> readHoldingRegisters(tx, address));
 
         yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
+      }
+      case INPUT_REGISTERS -> {
+        byte[] bs = device.processImage.get(tx -> readInputRegisters(tx, address));
+
+        yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
+      }
     };
+  }
+
+  private static boolean readCoil(Transaction tx, ModbusAddress address) {
+    return tx.readCoils(coilMap -> coilMap.getOrDefault(address.getOffset(), false));
+  }
+
+  private static boolean readDiscreteInput(Transaction tx, ModbusAddress address) {
+    return tx.readDiscreteInputs(
+        discreteInputMap -> discreteInputMap.getOrDefault(address.getOffset(), false));
+  }
+
+  private static byte[] readHoldingRegisters(Transaction tx, ModbusAddress address) {
+    return tx.readHoldingRegisters(registers -> readRegisters(registers, address));
+  }
+
+  private static byte[] readInputRegisters(Transaction tx, ModbusAddress address) {
+    return tx.readInputRegisters(registers -> readRegisters(registers, address));
+  }
+
+  private static byte[] readRegisters(Map<Integer, byte[]> registers, ModbusAddress address) {
+    var value = new byte[address.getDataType().getRegisterCount() * 2];
+
+    for (int i = 0; i < value.length / 2; i++) {
+      byte[] bs = registers.getOrDefault(address.getOffset() + i, new byte[2]);
+      value[i * 2] = bs[0];
+      value[i * 2 + 1] = bs[1];
+    }
+
+    return value;
   }
 
   private Variant readNonValueAttribute(
