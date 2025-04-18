@@ -13,6 +13,7 @@ import com.digitalpetri.modbus.server.ProcessImage.Transaction;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
+import com.kevinherron.ignition.modbus.address.ModbusAddress.ScalarAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
@@ -890,8 +891,10 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
       logger.trace("checking {}", id);
       try {
-        ModbusAddressParser.parse(id);
-        return true;
+        ModbusAddress address = ModbusAddressParser.parse(id);
+
+        // TODO support array addresses
+        return address instanceof ScalarAddress;
       } catch (Exception e) {
         return false;
       }

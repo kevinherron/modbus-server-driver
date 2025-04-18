@@ -18,7 +18,7 @@ public class ModbusAddressParser {
   private static final String DATA_TYPES =
       "BOOL|INT16|UINT16|INT32|UINT32|INT64|UINT64|FLOAT|DOUBLE|STRING[1-9][0-9]*";
   private static final String DATA_TYPE_MODIFIERS = "[@BE|@LE|@HL|@LH]+";
-  private static final String ARRAY_DIMENSIONS = "\\[\\d+]";
+  private static final String SUBSCRIPTS = "\\[\\d+]";
 
   static final Pattern ADDRESS_PATTERN =
       Pattern.compile(
@@ -30,8 +30,7 @@ public class ModbusAddressParser {
           ((?:%s){0,3})?\
           (?:\\.(\\d+))?\
           """
-              .formatted(
-                  AREAS, DATA_TYPES, ARRAY_DIMENSIONS, DATA_TYPE_MODIFIERS, ARRAY_DIMENSIONS),
+              .formatted(AREAS, DATA_TYPES, SUBSCRIPTS, DATA_TYPE_MODIFIERS, SUBSCRIPTS),
           Pattern.CASE_INSENSITIVE);
 
   public static ModbusAddress parse(String address) throws Exception {
@@ -62,7 +61,7 @@ public class ModbusAddressParser {
             .orElseThrow(() -> new Exception("invalid DataType: " + matcher.group(4)));
 
     List<Integer> dimensions =
-        parseArrayDimensions(matcher.group(5))
+        parseDimensions(matcher.group(5))
             .orElseThrow(() -> new Exception("invalid dimensions: " + matcher.group(5)));
 
     Set<DataTypeModifier> dataTypeModifiers =
@@ -71,16 +70,53 @@ public class ModbusAddressParser {
 
     int offset = Integer.parseInt(matcher.group(7));
 
+    List<Integer> indices =
+        parseIndices(matcher.group(8))
+            .orElseThrow(() -> new Exception("invalid indices: " + matcher.group(8)));
+
     if (matcher.group(9) != null) {
       int bit = Integer.parseInt(matcher.group(9));
       dataType = new ModbusDataType.Bit(dataType, bit);
     }
 
-    if (dimensions.isEmpty()) {
+    if (!indices.isEmpty()) {
+      // element within an array
+
+      if (!dimensions.isEmpty() && dimensions.size() != indices.size()) {
+        throw new Exception(
+            "number of indices (%d) doesn't match number of dimensions (%d)"
+                .formatted(indices.size(), dimensions.size()));
+      }
+
+      int calculatedOffset = offset;
+      for (int i = 0; i < indices.size(); i++) {
+        int index = indices.get(i);
+        int dimension = dimensions.get(i);
+
+        if (index < 0 || index >= dimension) {
+          throw new Exception("index " + index + " out of bounds for dimension " + dimension);
+        }
+
+        int multiplier = 1;
+        for (int j = i + 1; j < dimensions.size(); j++) {
+          multiplier *= dimensions.get(j);
+        }
+        calculatedOffset += index * multiplier * dataType.getRegisterCount();
+      }
+
+      return new ModbusAddress.ScalarAddress(
+          unitId, area, calculatedOffset, dataType, dataTypeModifiers);
+    } else if (dimensions.isEmpty()) {
+      // scalar address, no indices or dimensions
+
       return new ModbusAddress.ScalarAddress(unitId, area, offset, dataType, dataTypeModifiers);
     } else {
-      // TODO arrays
-      throw new Exception("array address not implemented");
+      // array address, no indices but dimensions are present
+
+      int[] dimensionsArray = dimensions.stream().mapToInt(Integer::intValue).toArray();
+
+      return new ModbusAddress.ArrayAddress(
+          unitId, area, offset, dataType, dataTypeModifiers, dimensionsArray);
     }
   }
 
@@ -149,12 +185,40 @@ public class ModbusAddressParser {
     return Optional.ofNullable(mdt);
   }
 
-  private static Optional<List<Integer>> parseArrayDimensions(String dimensions) {
-    if (dimensions == null || dimensions.isEmpty()) {
+  private static Optional<List<Integer>> parseDimensions(String dimensions) {
+    return parseSubscripts(dimensions, 1);
+  }
+
+  private static Optional<List<Integer>> parseIndices(String indices) {
+    return parseSubscripts(indices, 0);
+  }
+
+  private static Optional<List<Integer>> parseSubscripts(String subscripts, int minAllowed) {
+    if (subscripts == null || subscripts.isEmpty()) {
       return Optional.of(List.of());
     }
-    // TODO
-    return Optional.empty();
+
+    try {
+      var dimensionList = new java.util.ArrayList<Integer>();
+      var pattern = Pattern.compile("\\[(\\d+)]");
+      var matcher = pattern.matcher(subscripts);
+
+      while (matcher.find()) {
+        int dimension = Integer.parseInt(matcher.group(1));
+        if (dimension < minAllowed) {
+          return Optional.empty();
+        }
+        dimensionList.add(dimension);
+      }
+
+      if (dimensionList.isEmpty()) {
+        return Optional.empty();
+      }
+
+      return Optional.of(dimensionList);
+    } catch (NumberFormatException e) {
+      return Optional.empty();
+    }
   }
 
   private static Optional<Set<DataTypeModifier>> parseDataTypeModifiers(String modifiers) {

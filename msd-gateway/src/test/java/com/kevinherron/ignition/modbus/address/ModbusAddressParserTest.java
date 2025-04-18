@@ -114,4 +114,140 @@ class ModbusAddressParserTest {
 
     assertThrows(Exception.class, () -> ModbusAddressParser.parse("256.HR1"));
   }
+
+  @Test
+  void parseArrayAddress() throws Exception {
+    // 1-dimensional array
+    var address = ModbusAddressParser.parse("HR<int16[10]>1");
+    assertInstanceOf(ModbusAddress.ArrayAddress.class, address);
+
+    var arrayAddress = (ModbusAddress.ArrayAddress) address;
+    assertEquals(ModbusArea.HOLDING_REGISTERS, arrayAddress.getArea());
+    assertEquals(1, arrayAddress.getOffset());
+    assertInstanceOf(ModbusDataType.Int16.class, arrayAddress.getDataType());
+    assertEquals(1, arrayAddress.getDimensions().length);
+    assertEquals(10, arrayAddress.getDimensions()[0]);
+
+    // 2-dimensional array
+    address = ModbusAddressParser.parse("HR<int32[5][2]>100");
+    assertInstanceOf(ModbusAddress.ArrayAddress.class, address);
+
+    arrayAddress = (ModbusAddress.ArrayAddress) address;
+    assertEquals(ModbusArea.HOLDING_REGISTERS, arrayAddress.getArea());
+    assertEquals(100, arrayAddress.getOffset());
+    assertInstanceOf(ModbusDataType.Int32.class, arrayAddress.getDataType());
+    assertEquals(2, arrayAddress.getDimensions().length);
+    assertEquals(5, arrayAddress.getDimensions()[0]);
+    assertEquals(2, arrayAddress.getDimensions()[1]);
+
+    // 3-dimensional array
+    address = ModbusAddressParser.parse("IR<float[3][4][5]>200");
+    assertInstanceOf(ModbusAddress.ArrayAddress.class, address);
+
+    arrayAddress = (ModbusAddress.ArrayAddress) address;
+    assertEquals(ModbusArea.INPUT_REGISTERS, arrayAddress.getArea());
+    assertEquals(200, arrayAddress.getOffset());
+    assertInstanceOf(ModbusDataType.Float32.class, arrayAddress.getDataType());
+    assertEquals(3, arrayAddress.getDimensions().length);
+    assertEquals(3, arrayAddress.getDimensions()[0]);
+    assertEquals(4, arrayAddress.getDimensions()[1]);
+    assertEquals(5, arrayAddress.getDimensions()[2]);
+  }
+
+  @Test
+  void parseArrayAddressWithUnitId() throws Exception {
+    var address = ModbusAddressParser.parse("10.HR<int16[10]>1");
+    assertInstanceOf(ModbusAddress.ArrayAddress.class, address);
+
+    var arrayAddress = (ModbusAddress.ArrayAddress) address;
+    assertEquals(10, arrayAddress.getUnitId().orElseThrow());
+    assertEquals(ModbusArea.HOLDING_REGISTERS, arrayAddress.getArea());
+    assertEquals(1, arrayAddress.getOffset());
+    assertInstanceOf(ModbusDataType.Int16.class, arrayAddress.getDataType());
+    assertEquals(1, arrayAddress.getDimensions().length);
+    assertEquals(10, arrayAddress.getDimensions()[0]);
+  }
+
+  @Test
+  void parseArrayAddressWithDataTypeModifiers() throws Exception {
+    var address = ModbusAddressParser.parse("HR<int32[5][2]@LE@LH>100");
+    assertInstanceOf(ModbusAddress.ArrayAddress.class, address);
+
+    var arrayAddress = (ModbusAddress.ArrayAddress) address;
+    assertEquals(ModbusArea.HOLDING_REGISTERS, arrayAddress.getArea());
+    assertEquals(100, arrayAddress.getOffset());
+    assertInstanceOf(ModbusDataType.Int32.class, arrayAddress.getDataType());
+    assertEquals(2, arrayAddress.getDimensions().length);
+    assertEquals(5, arrayAddress.getDimensions()[0]);
+    assertEquals(2, arrayAddress.getDimensions()[1]);
+
+    var modifiers = arrayAddress.getDataTypeModifiers();
+    assertEquals(2, modifiers.size());
+    assertTrue(modifiers.stream().anyMatch(m -> m instanceof DataTypeModifier.ByteOrderModifier));
+    assertTrue(modifiers.stream().anyMatch(m -> m instanceof DataTypeModifier.WordOrderModifier));
+  }
+
+  @Test
+  void parseArrayAddressWithIndices() throws Exception {
+    // 1-dimensional array with index
+    var address = ModbusAddressParser.parse("HR<int16[10]>1[5]");
+    assertInstanceOf(ModbusAddress.ScalarAddress.class, address);
+
+    var scalarAddress = (ModbusAddress.ScalarAddress) address;
+    assertEquals(ModbusArea.HOLDING_REGISTERS, scalarAddress.getArea());
+    assertEquals(6, scalarAddress.getOffset()); // base offset 1 + index 5 * register count 1
+    assertInstanceOf(ModbusDataType.Int16.class, scalarAddress.getDataType());
+
+    // 2-dimensional array with indices
+    address = ModbusAddressParser.parse("HR<int32[5][2]>100[2][1]");
+    assertInstanceOf(ModbusAddress.ScalarAddress.class, address);
+
+    scalarAddress = (ModbusAddress.ScalarAddress) address;
+    assertEquals(ModbusArea.HOLDING_REGISTERS, scalarAddress.getArea());
+    assertEquals(110, scalarAddress.getOffset()); // base offset 100 + (2*2 + 1) * register count 2
+    assertInstanceOf(ModbusDataType.Int32.class, scalarAddress.getDataType());
+
+    // 3-dimensional array with indices
+    address = ModbusAddressParser.parse("IR<float[3][4][5]>200[1][2][3]");
+    assertInstanceOf(ModbusAddress.ScalarAddress.class, address);
+
+    scalarAddress = (ModbusAddress.ScalarAddress) address;
+    assertEquals(ModbusArea.INPUT_REGISTERS, scalarAddress.getArea());
+    assertEquals(
+        266, scalarAddress.getOffset()); // base offset 200 + (1*4*5 + 2*5 + 3) * register count 2
+    assertInstanceOf(ModbusDataType.Float32.class, scalarAddress.getDataType());
+
+    // With unit ID and data type modifiers
+    address = ModbusAddressParser.parse("10.HR<int32[5][2]@LE@LH>100[4][0]");
+    assertInstanceOf(ModbusAddress.ScalarAddress.class, address);
+
+    scalarAddress = (ModbusAddress.ScalarAddress) address;
+    assertEquals(10, scalarAddress.getUnitId().orElseThrow());
+    assertEquals(ModbusArea.HOLDING_REGISTERS, scalarAddress.getArea());
+    assertEquals(116, scalarAddress.getOffset()); // base offset 100 + (4*2 + 0) * register count 2
+    assertInstanceOf(ModbusDataType.Int32.class, scalarAddress.getDataType());
+
+    var modifiers = scalarAddress.getDataTypeModifiers();
+    assertEquals(2, modifiers.size());
+    assertTrue(modifiers.stream().anyMatch(m -> m instanceof DataTypeModifier.ByteOrderModifier));
+    assertTrue(modifiers.stream().anyMatch(m -> m instanceof DataTypeModifier.WordOrderModifier));
+  }
+
+  @Test
+  void parseArrayAddressWithInvalidIndices() {
+    // The number of indices doesn't match dimensions
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<int16[10][20]>1[5]"));
+
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<int16[10]>1[5][2]"));
+
+    // Index out of bounds
+    assertThrows(
+        Exception.class,
+        () -> ModbusAddressParser.parse("HR<int16[10]>1[10]")); // index must be < dimension
+
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<int16[10][20]>1[5][20]"));
+
+    // Negative index
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<int16[10]>1[-1]"));
+  }
 }
