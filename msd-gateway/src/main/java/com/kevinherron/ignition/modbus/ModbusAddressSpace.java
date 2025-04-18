@@ -207,14 +207,30 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
     return switch (area) {
       case COILS -> {
-        boolean value = device.processImage.get(tx -> readCoil(tx, address));
+        if (address instanceof ModbusAddress.ArrayAddress array) {
+          boolean[] values = device.processImage.get(tx -> readCoilArray(tx, array));
 
-        yield new Variant(value);
+          yield new Variant(values);
+        } else if (address instanceof ModbusAddress.ScalarAddress scalar) {
+          boolean value = device.processImage.get(tx -> readCoil(tx, scalar));
+
+          yield new Variant(value);
+        } else {
+          throw new IllegalArgumentException("address: " + address);
+        }
       }
       case DISCRETE_INPUTS -> {
-        boolean value = device.processImage.get(tx -> readDiscreteInput(tx, address));
+        if (address instanceof ModbusAddress.ArrayAddress array) {
+          boolean[] values = device.processImage.get(tx -> readDiscreteInputArray(tx, array));
 
-        yield new Variant(value);
+          yield new Variant(values);
+        } else if (address instanceof ModbusAddress.ScalarAddress scalar) {
+          boolean value = device.processImage.get(tx -> readDiscreteInput(tx, scalar));
+
+          yield new Variant(value);
+        } else {
+          throw new IllegalArgumentException("address: " + address);
+        }
       }
       case HOLDING_REGISTERS -> {
         byte[] bs = device.processImage.get(tx -> readHoldingRegisters(tx, address));
@@ -229,13 +245,37 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     };
   }
 
-  private static boolean readCoil(Transaction tx, ModbusAddress address) {
+  private static boolean readCoil(Transaction tx, ScalarAddress address) {
     return tx.readCoils(coilMap -> coilMap.getOrDefault(address.getOffset(), false));
   }
 
-  private static boolean readDiscreteInput(Transaction tx, ModbusAddress address) {
+  private static boolean readDiscreteInput(Transaction tx, ScalarAddress address) {
     return tx.readDiscreteInputs(
         discreteInputMap -> discreteInputMap.getOrDefault(address.getOffset(), false));
+  }
+
+  private static boolean[] readCoilArray(Transaction tx, ArrayAddress address) {
+    return tx.readCoils(coils -> readBooleans(coils, address));
+  }
+
+  private static boolean[] readDiscreteInputArray(Transaction tx, ArrayAddress address) {
+    return tx.readDiscreteInputs(inputs -> readBooleans(inputs, address));
+  }
+
+  static boolean[] readBooleans(Map<Integer, Boolean> booleans, ArrayAddress address) {
+    int totalElements = 1;
+    for (int dimension : address.getDimensions()) {
+      totalElements *= dimension;
+    }
+
+    boolean[] values = new boolean[totalElements];
+
+    for (int elementIndex = 0; elementIndex < totalElements; elementIndex++) {
+      int elementOffset = address.getOffset() + elementIndex;
+      values[elementIndex] = booleans.getOrDefault(elementOffset, false);
+    }
+
+    return values;
   }
 
   private static byte[] readHoldingRegisters(Transaction tx, ModbusAddress address) {

@@ -3,6 +3,7 @@ package com.kevinherron.ignition.modbus;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
+import com.kevinherron.ignition.modbus.address.ModbusAddress.ArrayAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -13,6 +14,17 @@ import org.junit.jupiter.params.provider.MethodSource;
 class ModbusAddressSpaceTest {
 
   @ParameterizedTest(name = "{0}")
+  @MethodSource("readBooleansArguments")
+  void readBooleans(String addressString, Map<Integer, Boolean> booleans, boolean[] expectedValues)
+      throws Exception {
+
+    ModbusAddress address = ModbusAddressParser.parse(addressString);
+    assertInstanceOf(ArrayAddress.class, address, "Address must be an array address");
+    boolean[] values = ModbusAddressSpace.readBooleans(booleans, (ArrayAddress) address);
+    assertArrayEquals(expectedValues, values);
+  }
+
+  @ParameterizedTest(name = "{0}")
   @MethodSource("readRegistersArguments")
   void readRegisters(String addressString, Map<Integer, byte[]> registers, byte[] expectedBytes)
       throws Exception {
@@ -20,6 +32,74 @@ class ModbusAddressSpaceTest {
     ModbusAddress address = ModbusAddressParser.parse(addressString);
     byte[] bytes = ModbusAddressSpace.readRegisters(registers, address);
     assertArrayEquals(expectedBytes, bytes);
+  }
+
+  private static Stream<Arguments> readBooleansArguments() {
+    return Stream.of(
+        // Test 1D array of booleans (3 elements)
+        Arguments.of(
+            "C<bool[3]>0",
+            Map.of(
+                0, true,
+                1, false,
+                2, true),
+            new boolean[] {true, false, true}),
+
+        // Test 2D array of booleans (2x2 elements)
+        Arguments.of(
+            "C<bool[2][2]>10",
+            Map.of(
+                10, true, // [0][0]
+                11, false, // [0][1]
+                12, false, // [1][0]
+                13, true), // [1][1]
+            new boolean[] {true, false, false, true}),
+
+        // Test 3D array of booleans (2x2x2 elements)
+        Arguments.of(
+            "C<bool[2][2][2]>50",
+            Map.of(
+                50, true, // [0][0][0]
+                51, false, // [0][0][1]
+                52, true, // [0][1][0]
+                53, false, // [0][1][1]
+                54, false, // [1][0][0]
+                55, true, // [1][0][1]
+                56, true, // [1][1][0]
+                57, false // [1][1][1]
+                ),
+            new boolean[] {true, false, true, false, false, true, true, false}),
+
+        // Test array with missing values (should return false for missing values)
+        Arguments.of(
+            "C<bool[3]>20",
+            Map.of(
+                20, true,
+                // 21 is missing
+                22, true),
+            new boolean[] {true, false, true}),
+
+        // Test discrete inputs
+        Arguments.of(
+            "DI<bool[4]>30",
+            Map.of(
+                30, true,
+                31, true,
+                32, false,
+                33, true),
+            new boolean[] {true, true, false, true}),
+
+        // Test larger array
+        Arguments.of(
+            "C<bool[6]>40",
+            Map.of(
+                40, true,
+                41, false,
+                42, true,
+                43, true,
+                44, false,
+                45, true),
+            new boolean[] {true, false, true, true, false, true}));
   }
 
   private static Stream<Arguments> readRegistersArguments() {
@@ -98,6 +178,24 @@ class ModbusAddressSpaceTest {
                 302, new byte[] {0x0E, 0x0F}, // [1][0]
                 303, new byte[] {0x10, 0x11}), // [1][1]
             new byte[] {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11}),
+
+        // Test 3D array of INT16 (2x2x2 elements)
+        Arguments.of(
+            "HR<int16[2][2][2]>500",
+            Map.of(
+                500, new byte[] {0x01, 0x01}, // [0][0][0]
+                501, new byte[] {0x02, 0x02}, // [0][0][1]
+                502, new byte[] {0x03, 0x03}, // [0][1][0]
+                503, new byte[] {0x04, 0x04}, // [0][1][1]
+                504, new byte[] {0x05, 0x05}, // [1][0][0]
+                505, new byte[] {0x06, 0x06}, // [1][0][1]
+                506, new byte[] {0x07, 0x07}, // [1][1][0]
+                507, new byte[] {0x08, 0x08} // [1][1][1]
+                ),
+            new byte[] {
+              0x01, 0x01, 0x02, 0x02, 0x03, 0x03, 0x04, 0x04, 0x05, 0x05, 0x06, 0x06, 0x07, 0x07,
+              0x08, 0x08
+            }),
 
         // Test array with missing values (should return zeros for missing registers)
         Arguments.of(
