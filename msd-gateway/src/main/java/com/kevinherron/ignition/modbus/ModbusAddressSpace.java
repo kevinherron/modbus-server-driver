@@ -12,6 +12,7 @@ import com.digitalpetri.modbus.server.ProcessImage.Modification.InputRegisterMod
 import com.digitalpetri.modbus.server.ProcessImage.Transaction;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
+import com.kevinherron.ignition.modbus.address.ModbusAddress.ArrayAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ScalarAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
@@ -163,7 +164,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
       if (readValueId.getIndexRange() != null && !readValueId.getIndexRange().isEmpty()) {
         // TODO support index ranges on array values
-        pending.value = new DataValue(StatusCodes.Bad_WriteNotSupported);
+        pending.value = new DataValue(StatusCodes.Bad_NotSupported);
         break;
       }
 
@@ -245,16 +246,45 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     return tx.readInputRegisters(registers -> readRegisters(registers, address));
   }
 
-  private static byte[] readRegisters(Map<Integer, byte[]> registers, ModbusAddress address) {
-    var value = new byte[address.getDataType().getRegisterCount() * 2];
+  static byte[] readRegisters(Map<Integer, byte[]> registers, ModbusAddress address) {
+    if (address instanceof ScalarAddress scalarAddress) {
+      var value = new byte[address.getDataType().getRegisterCount() * 2];
 
-    for (int i = 0; i < value.length / 2; i++) {
-      byte[] bs = registers.getOrDefault(address.getOffset() + i, new byte[2]);
-      value[i * 2] = bs[0];
-      value[i * 2 + 1] = bs[1];
+      for (int i = 0; i < value.length / 2; i++) {
+        byte[] bs = registers.getOrDefault(scalarAddress.getOffset() + i, new byte[2]);
+        value[i * 2] = bs[0];
+        value[i * 2 + 1] = bs[1];
+      }
+
+      return value;
+    } else if (address instanceof ArrayAddress arrayAddress) {
+      // Calculate the total number of elements in the array
+      int totalElements = 1;
+      for (int dimension : arrayAddress.getDimensions()) {
+        totalElements *= dimension;
+      }
+
+      // Allocate buffer for all array elements
+      int registerCount = arrayAddress.getDataType().getRegisterCount();
+      int bytesPerElement = registerCount * 2;
+      var value = new byte[totalElements * bytesPerElement];
+
+      // Read all register values for the entire array
+      for (int elementIndex = 0; elementIndex < totalElements; elementIndex++) {
+        int elementOffset = arrayAddress.getOffset() + (elementIndex * registerCount);
+
+        for (int i = 0; i < registerCount; i++) {
+          byte[] bs = registers.getOrDefault(elementOffset + i, new byte[2]);
+          int valueIndex = elementIndex * bytesPerElement + (i * 2);
+          value[valueIndex] = bs[0];
+          value[valueIndex + 1] = bs[1];
+        }
+      }
+
+      return value;
+    } else {
+      throw new IllegalArgumentException("address: " + address);
     }
-
-    return value;
   }
 
   private Variant readNonValueAttribute(
