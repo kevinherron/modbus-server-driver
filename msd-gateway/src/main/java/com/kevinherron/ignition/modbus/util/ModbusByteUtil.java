@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
 import org.eclipse.milo.opcua.stack.core.UaException;
+import org.eclipse.milo.opcua.stack.core.types.builtin.Matrix;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.ULong;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
@@ -27,7 +28,7 @@ public final class ModbusByteUtil {
       throws UaException {
 
     if (dataType instanceof ModbusDataType.Bit d) {
-      // read underlying value, check and return specified bit
+      // read the underlying value, check and return the specified bit
       Object value = getValueForBytes(registerBytes, d.underlyingType(), modifiers);
       if (value instanceof Number n) {
         return (n.longValue() & (1L << d.bit())) != 0L;
@@ -70,10 +71,23 @@ public final class ModbusByteUtil {
   }
 
   public static byte[] getBytesForValue(Object value, ModbusAddress address) throws UaException {
-    return getBytesForValue(value, address.getDataType(), address.getDataTypeModifiers());
+    if (address instanceof ModbusAddress.ArrayAddress array) {
+      if (array.getDimensions().length == 1) {
+        return getBytesForArrayValue(
+            value, array.getDataType(), array.getDataTypeModifiers(), array.getDimensions());
+      } else {
+        assert array.getDimensions().length > 1;
+        return getBytesForMatrixValue(
+            value, array.getDataType(), array.getDataTypeModifiers(), array.getDimensions());
+      }
+    } else if (address instanceof ModbusAddress.ScalarAddress) {
+      return getBytesForScalarValue(value, address.getDataType(), address.getDataTypeModifiers());
+    } else {
+      throw new IllegalArgumentException("address: " + address);
+    }
   }
 
-  public static byte[] getBytesForValue(
+  public static byte[] getBytesForScalarValue(
       Object value, ModbusDataType dataType, Set<DataTypeModifier> modifiers) throws UaException {
 
     byte[] valueBytes = new byte[dataType.getRegisterCount() * 2];
@@ -145,6 +159,28 @@ public final class ModbusByteUtil {
     }
 
     return valueBytes;
+  }
+
+  private static byte[] getBytesForArrayValue(
+      Object value, ModbusDataType dataType, Set<DataTypeModifier> modifiers, int[] dimensions)
+      throws UaException {
+
+    // TODO
+    throw new UaException(StatusCodes.Bad_NotImplemented);
+  }
+
+  private static byte[] getBytesForMatrixValue(
+      Object value, ModbusDataType dataType, Set<DataTypeModifier> modifiers, int[] dimensions)
+      throws UaException {
+
+    if (!(value instanceof Matrix)) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch);
+    }
+
+    Matrix matrix = (Matrix) value;
+
+    // TODO
+    throw new UaException(StatusCodes.Bad_NotImplemented);
   }
 
   static ByteArrayByteOps getByteOps(Set<DataTypeModifier> modifiers) {

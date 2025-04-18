@@ -435,21 +435,35 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   private void writeValueAttribute(ModbusAddress address, Variant variant) throws UaException {
     switch (address.getArea()) {
       case COILS -> {
-        if (variant.getValue() instanceof Boolean b) {
-          device.processImage.with(
-              tx -> tx.writeCoils(coilMap -> coilMap.put(address.getOffset(), b)));
+        if (address instanceof ModbusAddress.ArrayAddress array) {
+          // TODO
+          throw new UaException(StatusCodes.Bad_NotImplemented);
+        } else if (address instanceof ModbusAddress.ScalarAddress scalar) {
+          if (variant.getValue() instanceof Boolean b) {
+            device.processImage.with(
+                tx -> tx.writeCoils(coilMap -> coilMap.put(scalar.getOffset(), b)));
+          } else {
+            throw new UaException(StatusCodes.Bad_TypeMismatch);
+          }
         } else {
-          throw new UaException(StatusCodes.Bad_TypeMismatch);
+          throw new IllegalArgumentException("address: " + address);
         }
       }
       case DISCRETE_INPUTS -> {
-        if (variant.getValue() instanceof Boolean b) {
-          device.processImage.with(
-              tx ->
-                  tx.writeDiscreteInputs(
-                      discreteInputMap -> discreteInputMap.put(address.getOffset(), b)));
+        if (address instanceof ModbusAddress.ArrayAddress array) {
+          // TODO
+          throw new UaException(StatusCodes.Bad_NotImplemented);
+        } else if (address instanceof ModbusAddress.ScalarAddress scalar) {
+          if (variant.getValue() instanceof Boolean b) {
+            device.processImage.with(
+                tx ->
+                    tx.writeDiscreteInputs(
+                        discreteInputMap -> discreteInputMap.put(scalar.getOffset(), b)));
+          } else {
+            throw new UaException(StatusCodes.Bad_TypeMismatch);
+          }
         } else {
-          throw new UaException(StatusCodes.Bad_TypeMismatch);
+          throw new IllegalArgumentException("address: " + address);
         }
       }
       case HOLDING_REGISTERS -> {
@@ -564,7 +578,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
           v &= ~mask;
         }
         byte[] newBytes =
-            ModbusByteUtil.getBytesForValue(
+            ModbusByteUtil.getBytesForScalarValue(
                 castToUnderlying(v, underlyingType),
                 underlyingType,
                 address.getDataTypeModifiers());
