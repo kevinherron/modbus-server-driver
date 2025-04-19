@@ -1043,13 +1043,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       id = id.substring(deviceName.length() + 2);
 
       logger.trace("checking {}", id);
-      try {
-        ModbusAddress address = ModbusAddressParser.parse(id);
-
-        return true;
-      } catch (Exception e) {
-        return false;
-      }
+      return ModbusAddressParser.isValidAddress(id);
     }
   }
 }

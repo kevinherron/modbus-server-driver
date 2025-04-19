@@ -120,6 +120,15 @@ public class ModbusAddressParser {
     }
   }
 
+  public static boolean isValidAddress(String address) {
+    try {
+      parse(address);
+      return true;
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
   private static @Nullable Integer parseUnitId(String unitId) throws Exception {
     if (unitId != null) {
       try {
