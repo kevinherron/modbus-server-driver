@@ -4,6 +4,7 @@ import com.digitalpetri.util.ByteArrayByteOps;
 import com.kevinherron.ignition.modbus.address.DataTypeModifier;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
@@ -98,8 +99,92 @@ public final class ModbusByteUtil {
       int[] dimensions)
       throws UaException {
 
-    // TODO
-    throw new UaException(StatusCodes.Bad_NotImplemented);
+    if (dimensions.length != 1) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch, "expected 1-dimensional array");
+    }
+
+    int arrayLength = dimensions[0];
+    int bytesPerElement = dataType.getRegisterCount() * 2;
+    int totalBytes = arrayLength * bytesPerElement;
+
+    if (registerBytes.length < totalBytes) {
+      throw new UaException(StatusCodes.Bad_InternalError, "registerBytes.length < " + totalBytes);
+    }
+
+    ByteArrayByteOps byteOps = getByteOps(modifiers);
+
+    Class<?> componentType;
+    if (dataType instanceof ModbusDataType.Bool) {
+      componentType = Boolean.class;
+    } else if (dataType instanceof ModbusDataType.Int16) {
+      componentType = Short.class;
+    } else if (dataType instanceof ModbusDataType.UInt16) {
+      componentType = UShort.class;
+    } else if (dataType instanceof ModbusDataType.Int32) {
+      componentType = Integer.class;
+    } else if (dataType instanceof ModbusDataType.UInt32) {
+      componentType = UInteger.class;
+    } else if (dataType instanceof ModbusDataType.Int64) {
+      componentType = Long.class;
+    } else if (dataType instanceof ModbusDataType.UInt64) {
+      componentType = ULong.class;
+    } else if (dataType instanceof ModbusDataType.Float32) {
+      componentType = Float.class;
+    } else if (dataType instanceof ModbusDataType.Double64) {
+      componentType = Double.class;
+    } else if (dataType instanceof ModbusDataType.String) {
+      componentType = String.class;
+    } else if (dataType instanceof ModbusDataType.Bit) {
+      throw new UaException(StatusCodes.Bad_InternalError, "Bit arrays are not allowed");
+    } else {
+      throw new UaException(StatusCodes.Bad_InternalError, "dataType: " + dataType);
+    }
+
+    Object array = Array.newInstance(componentType, arrayLength);
+
+    // Iterate and parse
+    for (int i = 0; i < arrayLength; i++) {
+      int offset = i * bytesPerElement;
+
+      Object value;
+      if (dataType instanceof ModbusDataType.Bool) {
+        value = byteOps.getBoolean(registerBytes, offset);
+      } else if (dataType instanceof ModbusDataType.Int16) {
+        value = byteOps.getShort(registerBytes, offset);
+      } else if (dataType instanceof ModbusDataType.UInt16) {
+        short v = byteOps.getShort(registerBytes, offset);
+        value = UShort.valueOf(v);
+      } else if (dataType instanceof ModbusDataType.Int32) {
+        value = byteOps.getInt(registerBytes, offset);
+      } else if (dataType instanceof ModbusDataType.UInt32) {
+        int v = byteOps.getInt(registerBytes, offset);
+        value = UInteger.valueOf(v);
+      } else if (dataType instanceof ModbusDataType.Int64) {
+        value = byteOps.getLong(registerBytes, offset);
+      } else if (dataType instanceof ModbusDataType.UInt64) {
+        long v = byteOps.getLong(registerBytes, offset);
+        value = ULong.valueOf(v);
+      } else if (dataType instanceof ModbusDataType.Float32) {
+        value = byteOps.getFloat(registerBytes, offset);
+      } else if (dataType instanceof ModbusDataType.Double64) {
+        value = byteOps.getDouble(registerBytes, offset);
+      } else if (dataType instanceof ModbusDataType.String str) {
+        int length = str.length();
+        for (int j = 0; j < length; j++) {
+          if (registerBytes[offset + j] == 0) {
+            length = j;
+            break;
+          }
+        }
+        value = new String(registerBytes, offset, length, StandardCharsets.UTF_8);
+      } else {
+        throw new UaException(StatusCodes.Bad_InternalError, "dataType: " + dataType);
+      }
+
+      Array.set(array, i, value);
+    }
+
+    return array;
   }
 
   public static Object getMatrixValueForBytes(
@@ -228,7 +313,7 @@ public final class ModbusByteUtil {
     ByteArrayByteOps byteOps = getByteOps(modifiers);
 
     for (int i = 0; i < arrayLength; i++) {
-      Object element = java.lang.reflect.Array.get(value, i);
+      Object element = Array.get(value, i);
       int offset = i * bytesPerElement;
 
       if (dataType instanceof ModbusDataType.Bool) {

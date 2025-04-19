@@ -21,6 +21,256 @@ class ModbusByteUtilTest {
   private static final Set<DataTypeModifier> NO_MODIFIERS = Collections.emptySet();
 
   @Test
+  void testGetArrayValueForBytes_Bool() throws UaException {
+    // Create a byte array for 3 boolean values: true, false, true
+    byte[] bytes = new byte[] {1, 0, 0, 0, 1, 0};
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.Bool(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Boolean array with the expected values
+    assertEquals(Boolean[].class, result.getClass());
+    Boolean[] booleans = (Boolean[]) result;
+    assertEquals(3, booleans.length);
+    assertEquals(true, booleans[0]);
+    assertEquals(false, booleans[1]);
+    assertEquals(true, booleans[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_Int16() throws UaException {
+    // Create a byte array for 3 short values: 1, 2, 3 (big endian)
+    byte[] bytes = new byte[] {0, 1, 0, 2, 0, 3};
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.Int16(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Short array with the expected values
+    assertEquals(Short[].class, result.getClass());
+    Short[] shorts = (Short[]) result;
+    assertEquals(3, shorts.length);
+    assertEquals((short) 1, shorts[0]);
+    assertEquals((short) 2, shorts[1]);
+    assertEquals((short) 3, shorts[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_UInt16() throws UaException {
+    // Create a byte array for 3 ushort values: 1, 2, 3 (big endian)
+    byte[] bytes = new byte[] {0, 1, 0, 2, 0, 3};
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.UInt16(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a UShort array with the expected values
+    assertEquals(UShort[].class, result.getClass());
+    UShort[] ushorts = (UShort[]) result;
+    assertEquals(3, ushorts.length);
+    assertEquals(UShort.valueOf(1), ushorts[0]);
+    assertEquals(UShort.valueOf(2), ushorts[1]);
+    assertEquals(UShort.valueOf(3), ushorts[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_Int32() throws UaException {
+    // Create a byte array for 3 int values: 1, 2, 3 (big endian)
+    byte[] bytes = new byte[] {0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3};
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.Int32(), NO_MODIFIERS, dimensions);
+
+    // Verify result is an Integer array with the expected values
+    assertEquals(Integer[].class, result.getClass());
+    Integer[] integers = (Integer[]) result;
+    assertEquals(3, integers.length);
+    assertEquals(1, integers[0]);
+    assertEquals(2, integers[1]);
+    assertEquals(3, integers[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_UInt32() throws UaException {
+    // Create a byte array for 3 uint values: 1, 2, 3 (big endian)
+    byte[] bytes = new byte[] {0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3};
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.UInt32(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a UInteger array with the expected values
+    assertEquals(UInteger[].class, result.getClass());
+    UInteger[] uintegers = (UInteger[]) result;
+    assertEquals(3, uintegers.length);
+    assertEquals(UInteger.valueOf(1), uintegers[0]);
+    assertEquals(UInteger.valueOf(2), uintegers[1]);
+    assertEquals(UInteger.valueOf(3), uintegers[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_Int64() throws UaException {
+    // Create a byte array for 3 long values: 1, 2, 3 (big endian)
+    byte[] bytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 0, 1,
+          0, 0, 0, 0, 0, 0, 0, 2,
+          0, 0, 0, 0, 0, 0, 0, 3
+        };
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.Int64(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Long array with the expected values
+    assertEquals(Long[].class, result.getClass());
+    Long[] longs = (Long[]) result;
+    assertEquals(3, longs.length);
+    assertEquals(1L, longs[0]);
+    assertEquals(2L, longs[1]);
+    assertEquals(3L, longs[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_UInt64() throws UaException {
+    // Create a byte array for 3 ulong values: 1, 2, 3 (big endian)
+    byte[] bytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 0, 1,
+          0, 0, 0, 0, 0, 0, 0, 2,
+          0, 0, 0, 0, 0, 0, 0, 3
+        };
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.UInt64(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a ULong array with the expected values
+    assertEquals(ULong[].class, result.getClass());
+    ULong[] ulongs = (ULong[]) result;
+    assertEquals(3, ulongs.length);
+    assertEquals(ULong.valueOf(1), ulongs[0]);
+    assertEquals(ULong.valueOf(2), ulongs[1]);
+    assertEquals(ULong.valueOf(3), ulongs[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_Float32() throws UaException {
+    // Create a byte array for 3 float values: 1.0, 2.5, 3.75 (big endian)
+    // IEEE 754 representation of these values
+    byte[] bytes =
+        new byte[] {
+          0x3F, (byte) 0x80, 0x00, 0x00, // 1.0
+          0x40, 0x20, 0x00, 0x00, // 2.5
+          0x40, 0x70, 0x00, 0x00 // 3.75
+        };
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.Float32(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Float array with the expected values
+    assertEquals(Float[].class, result.getClass());
+    Float[] floats = (Float[]) result;
+    assertEquals(3, floats.length);
+    assertEquals(1.0f, floats[0]);
+    assertEquals(2.5f, floats[1]);
+    assertEquals(3.75f, floats[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_Double64() throws UaException {
+    // Create a byte array for 3 double values: 1.0, 2.5, 3.75 (big endian)
+    // IEEE 754 representation of these values
+    byte[] bytes =
+        new byte[] {
+          0x3F, (byte) 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1.0
+          0x40, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 2.5
+          0x40, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // 3.75
+        };
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.Double64(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Double array with the expected values
+    assertEquals(Double[].class, result.getClass());
+    Double[] doubles = (Double[]) result;
+    assertEquals(3, doubles.length);
+    assertEquals(1.0, doubles[0]);
+    assertEquals(2.5, doubles[1]);
+    assertEquals(3.75, doubles[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_String() throws UaException {
+    // Create a byte array for 3 string values: "abc", "def", "ghi" with 4 bytes each
+    byte[] bytes =
+        new byte[] {
+          'a', 'b', 'c', 0, // "abc" with null terminator
+          'd', 'e', 'f', 0, // "def" with null terminator
+          'g', 'h', 'i', 0 // "ghi" with null terminator
+        };
+    int[] dimensions = new int[] {3};
+
+    Object result =
+        ModbusByteUtil.getArrayValueForBytes(
+            bytes, new ModbusDataType.String(4), NO_MODIFIERS, dimensions);
+
+    // Verify result is a String array with the expected values
+    assertEquals(String[].class, result.getClass());
+    String[] strings = (String[]) result;
+    assertEquals(3, strings.length);
+    assertEquals("abc", strings[0]);
+    assertEquals("def", strings[1]);
+    assertEquals("ghi", strings[2]);
+  }
+
+  @Test
+  void testGetArrayValueForBytes_InsufficientData() {
+    // Create a byte array that's too short for the requested dimensions
+    byte[] bytes = new byte[] {0, 1, 0, 2}; // Only enough for 2 Int16 values
+    int[] dimensions = new int[] {3}; // But we're asking for 3
+
+    // Verify that an exception is thrown with the expected status code
+    UaException exception =
+        assertThrows(
+            UaException.class,
+            () ->
+                ModbusByteUtil.getArrayValueForBytes(
+                    bytes, new ModbusDataType.Int16(), NO_MODIFIERS, dimensions));
+
+    assertEquals(StatusCodes.Bad_InternalError, exception.getStatusCode().getValue());
+  }
+
+  @Test
+  void testGetArrayValueForBytes_InvalidDimensions() {
+    byte[] bytes = new byte[] {0, 1, 0, 2, 0, 3};
+    int[] dimensions = new int[] {2, 3}; // 2D array, not supported
+
+    // Verify that an exception is thrown with the expected status code
+    UaException exception =
+        assertThrows(
+            UaException.class,
+            () ->
+                ModbusByteUtil.getArrayValueForBytes(
+                    bytes, new ModbusDataType.Int16(), NO_MODIFIERS, dimensions));
+
+    assertEquals(StatusCodes.Bad_TypeMismatch, exception.getStatusCode().getValue());
+  }
+
+  @Test
   void testGetBytesForArrayValue_Bool() throws UaException {
     Boolean[] booleans = new Boolean[] {true, false, true};
     int[] dimensions = new int[] {booleans.length};
