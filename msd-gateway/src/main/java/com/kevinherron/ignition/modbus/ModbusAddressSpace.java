@@ -19,6 +19,7 @@ import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -44,8 +45,10 @@ import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.NodeIds;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
 import org.eclipse.milo.opcua.stack.core.UaException;
+import org.eclipse.milo.opcua.stack.core.UaRuntimeException;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
+import org.eclipse.milo.opcua.stack.core.types.builtin.Matrix;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
@@ -436,8 +439,20 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     switch (address.getArea()) {
       case COILS -> {
         if (address instanceof ModbusAddress.ArrayAddress array) {
-          // TODO
-          throw new UaException(StatusCodes.Bad_NotImplemented);
+          try {
+            device.processImage.with(
+                tx ->
+                    tx.writeCoils(
+                        coilMap -> {
+                          try {
+                            writeBooleanArray(coilMap, variant, array);
+                          } catch (UaException e) {
+                            throw new UaRuntimeException(e);
+                          }
+                        }));
+          } catch (Exception e) {
+            throw UaException.extract(e).orElse(new UaException(StatusCodes.Bad_InternalError));
+          }
         } else if (address instanceof ModbusAddress.ScalarAddress scalar) {
           if (variant.getValue() instanceof Boolean b) {
             device.processImage.with(
@@ -451,8 +466,20 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
       case DISCRETE_INPUTS -> {
         if (address instanceof ModbusAddress.ArrayAddress array) {
-          // TODO
-          throw new UaException(StatusCodes.Bad_NotImplemented);
+          try {
+            device.processImage.with(
+                tx ->
+                    tx.writeDiscreteInputs(
+                        discreteInputMap -> {
+                          try {
+                            writeBooleanArray(discreteInputMap, variant, array);
+                          } catch (UaException e) {
+                            throw new UaRuntimeException(e);
+                          }
+                        }));
+          } catch (Exception e) {
+            throw UaException.extract(e).orElse(new UaException(StatusCodes.Bad_InternalError));
+          }
         } else if (address instanceof ModbusAddress.ScalarAddress scalar) {
           if (variant.getValue() instanceof Boolean b) {
             device.processImage.with(
@@ -523,6 +550,47 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         }
       }
       default -> throw new IllegalArgumentException("area: " + address.getArea());
+    }
+  }
+
+  private static void writeBooleanArray(
+      Map<Integer, Boolean> booleanMap, Variant variant, ArrayAddress array) throws UaException {
+
+    int[] dimensions = array.getDimensions();
+
+    if (dimensions.length == 1) {
+      if (variant.getValue() instanceof Boolean[] booleans) {
+        if (booleans.length == dimensions[0]) {
+          for (int i = 0; i < booleans.length; i++) {
+            booleanMap.put(array.getOffset() + i, booleans[i]);
+          }
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    } else {
+      if (variant.getValue() instanceof Matrix matrix) {
+        int totalElements = 1;
+        for (int dimension : array.getDimensions()) {
+          totalElements *= dimension;
+        }
+        Object flatArray = matrix.getElements();
+        int arrayLength = Array.getLength(flatArray);
+
+        if (totalElements != arrayLength) {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+
+        for (int i = 0; i < totalElements; i++) {
+          int elementOffset = array.getOffset() + i;
+          Boolean b = (Boolean) Array.get(flatArray, i);
+          booleanMap.put(elementOffset, b);
+        }
+      } else {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
     }
   }
 
