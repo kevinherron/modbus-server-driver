@@ -161,12 +161,102 @@ public final class ModbusByteUtil {
     return valueBytes;
   }
 
-  private static byte[] getBytesForArrayValue(
+  static byte[] getBytesForArrayValue(
       Object value, ModbusDataType dataType, Set<DataTypeModifier> modifiers, int[] dimensions)
       throws UaException {
 
-    // TODO
-    throw new UaException(StatusCodes.Bad_NotImplemented);
+    // Check if the input value is actually a Java array
+    if (!value.getClass().isArray()) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch, "expected array");
+    }
+
+    // Validate dimensions array
+    if (dimensions.length != 1) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch, "expected 1-dimensional array");
+    }
+
+    int arrayLength = dimensions[0];
+
+    int bytesPerElement = dataType.getRegisterCount() * 2;
+    int totalBytes = arrayLength * bytesPerElement;
+    byte[] valueBytes = new byte[totalBytes];
+
+    ByteArrayByteOps byteOps = getByteOps(modifiers);
+
+    for (int i = 0; i < arrayLength; i++) {
+      Object element = java.lang.reflect.Array.get(value, i);
+      int offset = i * bytesPerElement;
+
+      if (dataType instanceof ModbusDataType.Bool) {
+        if (element instanceof Boolean v) {
+          byteOps.setBoolean(valueBytes, offset, v);
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.Int16) {
+        if (element instanceof Short v) {
+          byteOps.setShort(valueBytes, offset, v);
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.UInt16) {
+        if (element instanceof UShort v) {
+          byteOps.setShort(valueBytes, offset, v.shortValue());
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.Int32) {
+        if (element instanceof Integer v) {
+          byteOps.setInt(valueBytes, offset, v);
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.UInt32) {
+        if (element instanceof UInteger v) {
+          byteOps.setInt(valueBytes, offset, v.intValue());
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.Int64) {
+        if (element instanceof Long v) {
+          byteOps.setLong(valueBytes, offset, v);
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.UInt64) {
+        if (element instanceof ULong v) {
+          byteOps.setLong(valueBytes, offset, v.longValue());
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.Float32) {
+        if (element instanceof Float v) {
+          byteOps.setFloat(valueBytes, offset, v);
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.Double64) {
+        if (element instanceof Double v) {
+          byteOps.setDouble(valueBytes, offset, v);
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else if (dataType instanceof ModbusDataType.String) {
+        if (element instanceof String v) {
+          // note: padding with null bytes happens automatically
+          // since valueBytes is initialized with zeros
+          byte[] stringBytes = v.getBytes(StandardCharsets.UTF_8);
+          int lengthToCopy = Math.min(stringBytes.length, bytesPerElement);
+          System.arraycopy(stringBytes, 0, valueBytes, offset, lengthToCopy);
+        } else {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      } else {
+        throw new UaException(StatusCodes.Bad_InternalError, "dataType: " + dataType);
+      }
+    }
+
+    return valueBytes;
   }
 
   private static byte[] getBytesForMatrixValue(
@@ -197,16 +287,14 @@ public final class ModbusByteUtil {
     }
 
     return switch (byteOrder) {
-      case BIG_ENDIAN ->
-          switch (wordOrder) {
-            case HIGH_LOW -> ByteArrayByteOps.BIG_ENDIAN;
-            case LOW_HIGH -> ByteArrayByteOps.BIG_ENDIAN_LOW_HIGH;
-          };
-      case LITTLE_ENDIAN ->
-          switch (wordOrder) {
-            case HIGH_LOW -> ByteArrayByteOps.LITTLE_ENDIAN;
-            case LOW_HIGH -> ByteArrayByteOps.LITTLE_ENDIAN_LOW_HIGH;
-          };
+      case BIG_ENDIAN -> switch (wordOrder) {
+        case HIGH_LOW -> ByteArrayByteOps.BIG_ENDIAN;
+        case LOW_HIGH -> ByteArrayByteOps.BIG_ENDIAN_LOW_HIGH;
+      };
+      case LITTLE_ENDIAN -> switch (wordOrder) {
+        case HIGH_LOW -> ByteArrayByteOps.LITTLE_ENDIAN;
+        case LOW_HIGH -> ByteArrayByteOps.LITTLE_ENDIAN_LOW_HIGH;
+      };
     };
   }
 }
