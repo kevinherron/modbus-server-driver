@@ -634,7 +634,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
 
     Object underlyingValue =
-        ModbusByteUtil.getValueForBytes(bytes, underlyingType, address.getDataTypeModifiers());
+        ModbusByteUtil.getScalarValueForBytes(
+            bytes, underlyingType, address.getDataTypeModifiers());
 
     if (underlyingValue instanceof Number n) {
       long mask = 1L << bitIndex;
@@ -1045,8 +1046,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       try {
         ModbusAddress address = ModbusAddressParser.parse(id);
 
-        // TODO support array addresses
-        return address instanceof ScalarAddress;
+        return true;
       } catch (Exception e) {
         return false;
       }

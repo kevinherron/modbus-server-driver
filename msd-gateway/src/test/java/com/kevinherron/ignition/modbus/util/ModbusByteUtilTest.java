@@ -42,11 +42,14 @@ class ModbusByteUtilTest {
     System.arraycopy(bytes, 4, chunk3, 0, 2);
 
     assertEquals(
-        true, ModbusByteUtil.getValueForBytes(chunk1, new ModbusDataType.Bool(), NO_MODIFIERS));
+        true,
+        ModbusByteUtil.getScalarValueForBytes(chunk1, new ModbusDataType.Bool(), NO_MODIFIERS));
     assertEquals(
-        false, ModbusByteUtil.getValueForBytes(chunk2, new ModbusDataType.Bool(), NO_MODIFIERS));
+        false,
+        ModbusByteUtil.getScalarValueForBytes(chunk2, new ModbusDataType.Bool(), NO_MODIFIERS));
     assertEquals(
-        true, ModbusByteUtil.getValueForBytes(chunk3, new ModbusDataType.Bool(), NO_MODIFIERS));
+        true,
+        ModbusByteUtil.getScalarValueForBytes(chunk3, new ModbusDataType.Bool(), NO_MODIFIERS));
   }
 
   @Test
@@ -144,13 +147,13 @@ class ModbusByteUtilTest {
 
     assertEquals(
         UInteger.valueOf(1),
-        ModbusByteUtil.getValueForBytes(chunk1, new ModbusDataType.UInt32(), NO_MODIFIERS));
+        ModbusByteUtil.getScalarValueForBytes(chunk1, new ModbusDataType.UInt32(), NO_MODIFIERS));
     assertEquals(
         UInteger.valueOf(2),
-        ModbusByteUtil.getValueForBytes(chunk2, new ModbusDataType.UInt32(), NO_MODIFIERS));
+        ModbusByteUtil.getScalarValueForBytes(chunk2, new ModbusDataType.UInt32(), NO_MODIFIERS));
     assertEquals(
         UInteger.valueOf(3),
-        ModbusByteUtil.getValueForBytes(chunk3, new ModbusDataType.UInt32(), NO_MODIFIERS));
+        ModbusByteUtil.getScalarValueForBytes(chunk3, new ModbusDataType.UInt32(), NO_MODIFIERS));
   }
 
   @Test
@@ -176,13 +179,19 @@ class ModbusByteUtilTest {
 
     assertEquals(
         1L,
-        (Long) ModbusByteUtil.getValueForBytes(chunk1, new ModbusDataType.Int64(), NO_MODIFIERS));
+        (Long)
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk1, new ModbusDataType.Int64(), NO_MODIFIERS));
     assertEquals(
         2L,
-        (Long) ModbusByteUtil.getValueForBytes(chunk2, new ModbusDataType.Int64(), NO_MODIFIERS));
+        (Long)
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk2, new ModbusDataType.Int64(), NO_MODIFIERS));
     assertEquals(
         3L,
-        (Long) ModbusByteUtil.getValueForBytes(chunk3, new ModbusDataType.Int64(), NO_MODIFIERS));
+        (Long)
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk3, new ModbusDataType.Int64(), NO_MODIFIERS));
   }
 
   @Test
@@ -208,13 +217,13 @@ class ModbusByteUtilTest {
 
     assertEquals(
         ULong.valueOf(1),
-        ModbusByteUtil.getValueForBytes(chunk1, new ModbusDataType.UInt64(), NO_MODIFIERS));
+        ModbusByteUtil.getScalarValueForBytes(chunk1, new ModbusDataType.UInt64(), NO_MODIFIERS));
     assertEquals(
         ULong.valueOf(2),
-        ModbusByteUtil.getValueForBytes(chunk2, new ModbusDataType.UInt64(), NO_MODIFIERS));
+        ModbusByteUtil.getScalarValueForBytes(chunk2, new ModbusDataType.UInt64(), NO_MODIFIERS));
     assertEquals(
         ULong.valueOf(3),
-        ModbusByteUtil.getValueForBytes(chunk3, new ModbusDataType.UInt64(), NO_MODIFIERS));
+        ModbusByteUtil.getScalarValueForBytes(chunk3, new ModbusDataType.UInt64(), NO_MODIFIERS));
   }
 
   @Test
@@ -241,15 +250,18 @@ class ModbusByteUtilTest {
     assertEquals(
         1.0f,
         (Float)
-            ModbusByteUtil.getValueForBytes(chunk1, new ModbusDataType.Float32(), NO_MODIFIERS));
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk1, new ModbusDataType.Float32(), NO_MODIFIERS));
     assertEquals(
         2.5f,
         (Float)
-            ModbusByteUtil.getValueForBytes(chunk2, new ModbusDataType.Float32(), NO_MODIFIERS));
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk2, new ModbusDataType.Float32(), NO_MODIFIERS));
     assertEquals(
         3.75f,
         (Float)
-            ModbusByteUtil.getValueForBytes(chunk3, new ModbusDataType.Float32(), NO_MODIFIERS));
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk3, new ModbusDataType.Float32(), NO_MODIFIERS));
   }
 
   @Test
@@ -276,15 +288,18 @@ class ModbusByteUtilTest {
     assertEquals(
         1.0,
         (Double)
-            ModbusByteUtil.getValueForBytes(chunk1, new ModbusDataType.Double64(), NO_MODIFIERS));
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk1, new ModbusDataType.Double64(), NO_MODIFIERS));
     assertEquals(
         2.5,
         (Double)
-            ModbusByteUtil.getValueForBytes(chunk2, new ModbusDataType.Double64(), NO_MODIFIERS));
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk2, new ModbusDataType.Double64(), NO_MODIFIERS));
     assertEquals(
         3.75,
         (Double)
-            ModbusByteUtil.getValueForBytes(chunk3, new ModbusDataType.Double64(), NO_MODIFIERS));
+            ModbusByteUtil.getScalarValueForBytes(
+                chunk3, new ModbusDataType.Double64(), NO_MODIFIERS));
   }
 
   @Test
@@ -347,13 +362,17 @@ class ModbusByteUtilTest {
     System.arraycopy(bytes, 6, chunk4, 0, 2);
 
     assertEquals(
-        true, ModbusByteUtil.getValueForBytes(chunk1, new ModbusDataType.Bool(), NO_MODIFIERS));
+        true,
+        ModbusByteUtil.getScalarValueForBytes(chunk1, new ModbusDataType.Bool(), NO_MODIFIERS));
     assertEquals(
-        false, ModbusByteUtil.getValueForBytes(chunk2, new ModbusDataType.Bool(), NO_MODIFIERS));
+        false,
+        ModbusByteUtil.getScalarValueForBytes(chunk2, new ModbusDataType.Bool(), NO_MODIFIERS));
     assertEquals(
-        false, ModbusByteUtil.getValueForBytes(chunk3, new ModbusDataType.Bool(), NO_MODIFIERS));
+        false,
+        ModbusByteUtil.getScalarValueForBytes(chunk3, new ModbusDataType.Bool(), NO_MODIFIERS));
     assertEquals(
-        true, ModbusByteUtil.getValueForBytes(chunk4, new ModbusDataType.Bool(), NO_MODIFIERS));
+        true,
+        ModbusByteUtil.getScalarValueForBytes(chunk4, new ModbusDataType.Bool(), NO_MODIFIERS));
   }
 
   @Test
@@ -429,7 +448,8 @@ class ModbusByteUtilTest {
       int expectedValue = integers[i];
       int actualValue =
           (Integer)
-              ModbusByteUtil.getValueForBytes(chunk, new ModbusDataType.Int32(), NO_MODIFIERS);
+              ModbusByteUtil.getScalarValueForBytes(
+                  chunk, new ModbusDataType.Int32(), NO_MODIFIERS);
 
       assertEquals(expectedValue, actualValue);
     }
@@ -461,7 +481,8 @@ class ModbusByteUtilTest {
       UInteger expectedValue = uintegers[i];
       UInteger actualValue =
           (UInteger)
-              ModbusByteUtil.getValueForBytes(chunk, new ModbusDataType.UInt32(), NO_MODIFIERS);
+              ModbusByteUtil.getScalarValueForBytes(
+                  chunk, new ModbusDataType.UInt32(), NO_MODIFIERS);
 
       assertEquals(expectedValue, actualValue);
     }
@@ -488,7 +509,9 @@ class ModbusByteUtilTest {
 
       Long expectedValue = longs[i];
       Long actualValue =
-          (Long) ModbusByteUtil.getValueForBytes(chunk, new ModbusDataType.Int64(), NO_MODIFIERS);
+          (Long)
+              ModbusByteUtil.getScalarValueForBytes(
+                  chunk, new ModbusDataType.Int64(), NO_MODIFIERS);
 
       assertEquals(expectedValue, actualValue);
     }
@@ -519,7 +542,9 @@ class ModbusByteUtilTest {
 
       ULong expectedValue = ulongs[i];
       ULong actualValue =
-          (ULong) ModbusByteUtil.getValueForBytes(chunk, new ModbusDataType.UInt64(), NO_MODIFIERS);
+          (ULong)
+              ModbusByteUtil.getScalarValueForBytes(
+                  chunk, new ModbusDataType.UInt64(), NO_MODIFIERS);
 
       assertEquals(expectedValue, actualValue);
     }
@@ -547,7 +572,8 @@ class ModbusByteUtilTest {
       float expectedValue = floats[i];
       float actualValue =
           (Float)
-              ModbusByteUtil.getValueForBytes(chunk, new ModbusDataType.Float32(), NO_MODIFIERS);
+              ModbusByteUtil.getScalarValueForBytes(
+                  chunk, new ModbusDataType.Float32(), NO_MODIFIERS);
 
       assertEquals(expectedValue, actualValue);
     }
@@ -575,7 +601,8 @@ class ModbusByteUtilTest {
       Double expectedValue = doubles[i];
       Double actualValue =
           (Double)
-              ModbusByteUtil.getValueForBytes(chunk, new ModbusDataType.Double64(), NO_MODIFIERS);
+              ModbusByteUtil.getScalarValueForBytes(
+                  chunk, new ModbusDataType.Double64(), NO_MODIFIERS);
 
       assertEquals(expectedValue, actualValue);
     }
