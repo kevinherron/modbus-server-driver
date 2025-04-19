@@ -1,6 +1,8 @@
 package com.kevinherron.ignition.modbus.util;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.kevinherron.ignition.modbus.address.DataTypeModifier;
@@ -958,5 +960,436 @@ class ModbusByteUtilTest {
                     booleans, new ModbusDataType.Bool(), NO_MODIFIERS, dimensions));
 
     assertEquals(StatusCodes.Bad_TypeMismatch, exception.getStatusCode().getValue());
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_Bool_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of Boolean values
+    // [true, false, false, true]
+    // Each Bool takes 2 bytes (1 register)
+    byte[] registerBytes = new byte[] {1, 0, 0, 0, 0, 0, 1, 0};
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.Bool(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(Boolean[].class, array);
+    Boolean[] booleans = (Boolean[]) array;
+
+    assertEquals(4, booleans.length);
+    assertEquals(true, booleans[0]);
+    assertEquals(false, booleans[1]);
+    assertEquals(false, booleans[2]);
+    assertEquals(true, booleans[3]);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_Int16_3D() throws UaException {
+    // Create register bytes for a 2x2x2 matrix of Int16 values
+    // Each Int16 takes 2 bytes
+    byte[] registerBytes =
+        new byte[] {
+          0, 1, // 1
+          0, 2, // 2
+          0, 3, // 3
+          0, 4, // 4
+          0, 5, // 5
+          0, 6, // 6
+          0, 7, // 7
+          0, 8 // 8
+        };
+    int[] dimensions = new int[] {2, 2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.Int16(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(Short[].class, array);
+    Short[] shorts = (Short[]) array;
+
+    assertEquals(8, shorts.length);
+    for (int i = 0; i < 8; i++) {
+      assertEquals((short) (i + 1), shorts[i]);
+    }
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_UInt16_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of UInt16 values
+    // [1, 2, 3, 4]
+    // Each UInt16 takes 2 bytes
+    byte[] registerBytes =
+        new byte[] {
+          0, 1, // 1
+          0, 2, // 2
+          0, 3, // 3
+          0, 4 // 4
+        };
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.UInt16(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(UShort[].class, array);
+    UShort[] ushorts = (UShort[]) array;
+
+    assertEquals(4, ushorts.length);
+    assertEquals(UShort.valueOf(1), ushorts[0]);
+    assertEquals(UShort.valueOf(2), ushorts[1]);
+    assertEquals(UShort.valueOf(3), ushorts[2]);
+    assertEquals(UShort.valueOf(4), ushorts[3]);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_Int32_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of Int32 values
+    // [1, 2, 3, 4]
+    // Each Int32 takes 4 bytes
+    byte[] registerBytes =
+        new byte[] {
+          0, 0, 0, 1, // 1
+          0, 0, 0, 2, // 2
+          0, 0, 0, 3, // 3
+          0, 0, 0, 4 // 4
+        };
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.Int32(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(Integer[].class, array);
+    Integer[] integers = (Integer[]) array;
+
+    assertEquals(4, integers.length);
+    assertEquals(1, integers[0]);
+    assertEquals(2, integers[1]);
+    assertEquals(3, integers[2]);
+    assertEquals(4, integers[3]);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_UInt32_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of UInt32 values
+    // [1, 2, 3, 4]
+    // Each UInt32 takes 4 bytes
+    byte[] registerBytes =
+        new byte[] {
+          0, 0, 0, 1, // 1
+          0, 0, 0, 2, // 2
+          0, 0, 0, 3, // 3
+          0, 0, 0, 4 // 4
+        };
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.UInt32(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(UInteger[].class, array);
+    UInteger[] uintegers = (UInteger[]) array;
+
+    assertEquals(4, uintegers.length);
+    assertEquals(UInteger.valueOf(1), uintegers[0]);
+    assertEquals(UInteger.valueOf(2), uintegers[1]);
+    assertEquals(UInteger.valueOf(3), uintegers[2]);
+    assertEquals(UInteger.valueOf(4), uintegers[3]);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_Int64_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of Int64 values
+    // [1, 2, 3, 4]
+    // Each Int64 takes 8 bytes
+    byte[] registerBytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 0, 1, // 1
+          0, 0, 0, 0, 0, 0, 0, 2, // 2
+          0, 0, 0, 0, 0, 0, 0, 3, // 3
+          0, 0, 0, 0, 0, 0, 0, 4 // 4
+        };
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.Int64(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(Long[].class, array);
+    Long[] longs = (Long[]) array;
+
+    assertEquals(4, longs.length);
+    assertEquals(1L, longs[0]);
+    assertEquals(2L, longs[1]);
+    assertEquals(3L, longs[2]);
+    assertEquals(4L, longs[3]);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_UInt64_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of UInt64 values
+    // [1, 2, 3, 4]
+    // Each UInt64 takes 8 bytes
+    byte[] registerBytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 0, 1, // 1
+          0, 0, 0, 0, 0, 0, 0, 2, // 2
+          0, 0, 0, 0, 0, 0, 0, 3, // 3
+          0, 0, 0, 0, 0, 0, 0, 4 // 4
+        };
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.UInt64(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(ULong[].class, array);
+    ULong[] ulongs = (ULong[]) array;
+
+    assertEquals(4, ulongs.length);
+    assertEquals(ULong.valueOf(1), ulongs[0]);
+    assertEquals(ULong.valueOf(2), ulongs[1]);
+    assertEquals(ULong.valueOf(3), ulongs[2]);
+    assertEquals(ULong.valueOf(4), ulongs[3]);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_Float32_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of Float32 values
+    // [1.0, 2.5, 3.75, 4.125]
+    // Each Float32 takes 4 bytes
+    // Using IEEE 754 binary representation for these values
+    byte[] registerBytes =
+        new byte[] {
+          0x3F,
+          (byte) 0x80,
+          0x00,
+          0x00, // 1.0f in IEEE 754
+          0x40,
+          0x20,
+          0x00,
+          0x00, // 2.5f in IEEE 754
+          0x40,
+          0x70,
+          0x00,
+          0x00, // 3.75f in IEEE 754
+          0x40,
+          (byte) 0x84,
+          0x00,
+          0x00 // 4.125f in IEEE 754
+        };
+
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.Float32(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(Float[].class, array);
+    Float[] floats = (Float[]) array;
+
+    assertEquals(4, floats.length);
+    assertEquals(1.0f, floats[0], 0.0001);
+    assertEquals(2.5f, floats[1], 0.0001);
+    assertEquals(3.75f, floats[2], 0.0001);
+    assertEquals(4.125f, floats[3], 0.0001);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_Double64_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of Double64 values
+    // [1.0, 2.5, 3.75, 4.125]
+    // Each Double64 takes 8 bytes
+    // Using IEEE 754 binary representation for these values
+    byte[] registerBytes =
+        new byte[] {
+          0x3F, (byte) 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1.0 in IEEE 754
+          0x40, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 2.5 in IEEE 754
+          0x40, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 3.75 in IEEE 754
+          0x40, 0x10, (byte) 0x80, 0x00, 0x00, 0x00, 0x00, 0x00 // 4.125 in IEEE 754
+        };
+
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.Double64(), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(Double[].class, array);
+    Double[] doubles = (Double[]) array;
+
+    assertEquals(4, doubles.length);
+    assertEquals(1.0, doubles[0], 0.0001);
+    assertEquals(2.5, doubles[1], 0.0001);
+    assertEquals(3.75, doubles[2], 0.0001);
+    assertEquals(4.125, doubles[3], 0.0001);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_String_2D() throws UaException {
+    // Create register bytes for a 2x2 matrix of String values
+    // ["ab", "cd", "ef", "gh"]
+    // Each String takes 4 bytes (2 chars + potential null termination)
+    byte[] registerBytes = new byte[16]; // 4 strings * 4 bytes each
+
+    // Set the bytes for each string value
+    byte[] ab = "ab".getBytes(StandardCharsets.UTF_8);
+    byte[] cd = "cd".getBytes(StandardCharsets.UTF_8);
+    byte[] ef = "ef".getBytes(StandardCharsets.UTF_8);
+    byte[] gh = "gh".getBytes(StandardCharsets.UTF_8);
+
+    System.arraycopy(ab, 0, registerBytes, 0, ab.length);
+    System.arraycopy(cd, 0, registerBytes, 4, cd.length);
+    System.arraycopy(ef, 0, registerBytes, 8, ef.length);
+    System.arraycopy(gh, 0, registerBytes, 12, gh.length);
+
+    int[] dimensions = new int[] {2, 2};
+
+    // Get matrix value
+    Object result =
+        ModbusByteUtil.getMatrixValueForBytes(
+            registerBytes, new ModbusDataType.String(4), NO_MODIFIERS, dimensions);
+
+    // Verify result is a Matrix
+    assertInstanceOf(Matrix.class, result);
+    Matrix matrix = (Matrix) result;
+
+    // Verify dimensions
+    assertArrayEquals(dimensions, matrix.getDimensions());
+
+    // Verify contents
+    Object array = matrix.getElements();
+    assertInstanceOf(String[].class, array);
+    String[] strings = (String[]) array;
+
+    assertEquals(4, strings.length);
+    assertEquals("ab", strings[0]);
+    assertEquals("cd", strings[1]);
+    assertEquals("ef", strings[2]);
+    assertEquals("gh", strings[3]);
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_SingleDimension() {
+    int[] dimensions = new int[] {4};
+
+    UaException exception =
+        assertThrows(
+            UaException.class,
+            () ->
+                ModbusByteUtil.getMatrixValueForBytes(
+                    new byte[4], new ModbusDataType.Bool(), NO_MODIFIERS, dimensions));
+
+    assertEquals(StatusCodes.Bad_InternalError, exception.getStatusCode().getValue());
+  }
+
+  @Test
+  void testGetMatrixValueForBytes_InsufficientData() {
+    // Create dimensions for a 2x2 matrix of Int16 values (4 elements total)
+    // Each Int16 takes 2 bytes, so we need 8 bytes total
+    int[] dimensions = new int[] {2, 2};
+
+    // But provide only 6 bytes (insufficient)
+    byte[] registerBytes = new byte[6];
+
+    UaException exception =
+        assertThrows(
+            UaException.class,
+            () ->
+                ModbusByteUtil.getMatrixValueForBytes(
+                    registerBytes, new ModbusDataType.Int16(), NO_MODIFIERS, dimensions));
+
+    assertEquals(StatusCodes.Bad_InternalError, exception.getStatusCode().getValue());
   }
 }

@@ -194,8 +194,21 @@ public final class ModbusByteUtil {
       int[] dimensions)
       throws UaException {
 
-    // TODO
-    throw new UaException(StatusCodes.Bad_NotImplemented);
+    if (dimensions.length <= 1) {
+      throw new UaException(
+          StatusCodes.Bad_InternalError,
+          "expected multi-dimensional array (dimensions.length > 1)");
+    }
+
+    int totalElementCount = 1;
+    for (int dimension : dimensions) {
+      totalElementCount *= dimension;
+    }
+
+    Object flatArray =
+        getArrayValueForBytes(registerBytes, dataType, modifiers, new int[] {totalElementCount});
+
+    return new Matrix(flatArray, dimensions, dataType.getOpcUaDataType());
   }
 
   public static byte[] getBytesForValue(Object value, ModbusAddress address) throws UaException {
