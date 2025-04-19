@@ -7,6 +7,8 @@ import com.kevinherron.ignition.modbus.address.ModbusAddress.ArrayAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.eclipse.milo.opcua.stack.core.types.builtin.Matrix;
+import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -32,6 +34,28 @@ class ModbusAddressSpaceTest {
     ModbusAddress address = ModbusAddressParser.parse(addressString);
     byte[] bytes = ModbusAddressSpace.readRegisters(registers, address);
     assertArrayEquals(expectedBytes, bytes);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("writeBooleanArrayArguments")
+  void writeBooleanArray(String addressString, Object value, Map<Integer, Boolean> expectedMap)
+      throws Exception {
+
+    ModbusAddress address = ModbusAddressParser.parse(addressString);
+    assertInstanceOf(ArrayAddress.class, address, "Address must be an array address");
+
+    Map<Integer, Boolean> booleanMap = new java.util.HashMap<>();
+    Variant variant = new Variant(value);
+
+    ModbusAddressSpace.writeBooleanArray(booleanMap, variant, (ArrayAddress) address);
+
+    assertEquals(expectedMap.size(), booleanMap.size(), "Map size should match");
+    for (Map.Entry<Integer, Boolean> entry : expectedMap.entrySet()) {
+      assertEquals(
+          entry.getValue(),
+          booleanMap.get(entry.getKey()),
+          "Value at offset " + entry.getKey() + " should match");
+    }
   }
 
   private static Stream<Arguments> readBooleansArguments() {
@@ -100,6 +124,56 @@ class ModbusAddressSpaceTest {
                 44, false,
                 45, true),
             new boolean[] {true, false, true, true, false, true}));
+  }
+
+  private static Stream<Arguments> writeBooleanArrayArguments() {
+    // 1D array test
+    Boolean[] array1d = new Boolean[] {true, false, true};
+    Map<Integer, Boolean> expected1d =
+        Map.of(
+            0, true,
+            1, false,
+            2, true);
+
+    // 2D array test (2x2)
+    Boolean[] array2d = new Boolean[] {true, false, false, true};
+    int[] dimensions2d = new int[] {2, 2};
+    Matrix matrix2d = new Matrix(array2d, dimensions2d);
+    Map<Integer, Boolean> expected2d =
+        Map.of(
+            10, true, // [0][0]
+            11, false, // [0][1]
+            12, false, // [1][0]
+            13, true); // [1][1]
+
+    // 3D array test (2x2x2)
+    Boolean[] array3d =
+        new Boolean[] {
+          true, false, true, false,
+          false, true, true, false
+        };
+    int[] dimensions3d = new int[] {2, 2, 2};
+    Matrix matrix3d = new Matrix(array3d, dimensions3d);
+    Map<Integer, Boolean> expected3d =
+        Map.of(
+            50, true, // [0][0][0]
+            51, false, // [0][0][1]
+            52, true, // [0][1][0]
+            53, false, // [0][1][1]
+            54, false, // [1][0][0]
+            55, true, // [1][0][1]
+            56, true, // [1][1][0]
+            57, false); // [1][1][1]
+
+    return Stream.of(
+        // Test 1D array
+        Arguments.of("C<bool[3]>0", array1d, expected1d),
+
+        // Test 2D array (Matrix)
+        Arguments.of("C<bool[2][2]>10", matrix2d, expected2d),
+
+        // Test 3D array (Matrix)
+        Arguments.of("C<bool[2][2][2]>50", matrix3d, expected3d));
   }
 
   private static Stream<Arguments> readRegistersArguments() {

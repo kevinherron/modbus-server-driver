@@ -553,7 +553,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
   }
 
-  private static void writeBooleanArray(
+  static void writeBooleanArray(
       Map<Integer, Boolean> booleanMap, Variant variant, ArrayAddress array) throws UaException {
 
     int[] dimensions = array.getDimensions();
