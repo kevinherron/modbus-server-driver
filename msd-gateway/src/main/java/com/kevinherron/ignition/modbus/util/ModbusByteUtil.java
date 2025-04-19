@@ -259,18 +259,37 @@ public final class ModbusByteUtil {
     return valueBytes;
   }
 
-  private static byte[] getBytesForMatrixValue(
+  static byte[] getBytesForMatrixValue(
       Object value, ModbusDataType dataType, Set<DataTypeModifier> modifiers, int[] dimensions)
       throws UaException {
 
-    if (!(value instanceof Matrix)) {
+    if (value instanceof Matrix matrix) {
+      if (matrix.isNull()) {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+
+      if (matrix.getDimensions().length != dimensions.length) {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+
+      for (int i = 0; i < dimensions.length; i++) {
+        if (matrix.getDimensions()[i] != dimensions[i]) {
+          throw new UaException(StatusCodes.Bad_TypeMismatch);
+        }
+      }
+
+      Object flatArrayValue = matrix.getElements();
+      assert flatArrayValue != null;
+
+      int elementCount = 1;
+      for (int dimension : dimensions) {
+        elementCount *= dimension;
+      }
+
+      return getBytesForArrayValue(flatArrayValue, dataType, modifiers, new int[] {elementCount});
+    } else {
       throw new UaException(StatusCodes.Bad_TypeMismatch);
     }
-
-    Matrix matrix = (Matrix) value;
-
-    // TODO
-    throw new UaException(StatusCodes.Bad_NotImplemented);
   }
 
   static ByteArrayByteOps getByteOps(Set<DataTypeModifier> modifiers) {
@@ -287,14 +306,16 @@ public final class ModbusByteUtil {
     }
 
     return switch (byteOrder) {
-      case BIG_ENDIAN -> switch (wordOrder) {
-        case HIGH_LOW -> ByteArrayByteOps.BIG_ENDIAN;
-        case LOW_HIGH -> ByteArrayByteOps.BIG_ENDIAN_LOW_HIGH;
-      };
-      case LITTLE_ENDIAN -> switch (wordOrder) {
-        case HIGH_LOW -> ByteArrayByteOps.LITTLE_ENDIAN;
-        case LOW_HIGH -> ByteArrayByteOps.LITTLE_ENDIAN_LOW_HIGH;
-      };
+      case BIG_ENDIAN ->
+          switch (wordOrder) {
+            case HIGH_LOW -> ByteArrayByteOps.BIG_ENDIAN;
+            case LOW_HIGH -> ByteArrayByteOps.BIG_ENDIAN_LOW_HIGH;
+          };
+      case LITTLE_ENDIAN ->
+          switch (wordOrder) {
+            case HIGH_LOW -> ByteArrayByteOps.LITTLE_ENDIAN;
+            case LOW_HIGH -> ByteArrayByteOps.LITTLE_ENDIAN_LOW_HIGH;
+          };
     };
   }
 }
