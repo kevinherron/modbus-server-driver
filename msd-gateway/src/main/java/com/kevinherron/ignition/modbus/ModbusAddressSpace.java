@@ -17,9 +17,11 @@ import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -546,15 +548,16 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   private void loadCoils(Transaction tx) {
     Path path = device.deviceContext.getDeviceFolderPath().resolve("coils.bin").toAbsolutePath();
 
-    try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
-      coilsFile.setLength(65535);
-      byte[] coils = new byte[65535];
-      coilsFile.readFully(coils);
+    try (FileChannel channel = openFileChannel(path)) {
+      channel.truncate(65535);
+      ByteBuffer coils = ByteBuffer.allocate(65535);
+      channel.read(coils);
+      coils.flip();
 
       tx.writeCoils(
           coilMap -> {
-            for (int i = 0; i < coils.length; i++) {
-              if (coils[i] != 0) {
+            for (int i = 0; i < coils.limit(); i++) {
+              if (coils.get(i) != 0) {
                 coilMap.put(i, true);
               }
             }
@@ -568,15 +571,16 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     Path path =
         device.deviceContext.getDeviceFolderPath().resolve("discreteInputs.bin").toAbsolutePath();
 
-    try (var discreteInputsFile = new RandomAccessFile(path.toFile(), "rw")) {
-      discreteInputsFile.setLength(65535);
-      byte[] discreteInputs = new byte[65535];
-      discreteInputsFile.readFully(discreteInputs);
+    try (FileChannel channel = openFileChannel(path)) {
+      channel.truncate(65535);
+      ByteBuffer discreteInputs = ByteBuffer.allocate(65535);
+      channel.read(discreteInputs);
+      discreteInputs.flip();
 
       tx.writeDiscreteInputs(
           discreteInputMap -> {
-            for (int i = 0; i < discreteInputs.length; i++) {
-              if (discreteInputs[i] != 0) {
+            for (int i = 0; i < discreteInputs.limit(); i++) {
+              if (discreteInputs.get(i) != 0) {
                 discreteInputMap.put(i, true);
               }
             }
@@ -590,16 +594,18 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     Path path =
         device.deviceContext.getDeviceFolderPath().resolve("holdingRegisters.bin").toAbsolutePath();
 
-    try (var holdingRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
-      holdingRegistersFile.setLength(65535 * 2);
-      byte[] holdingRegisters = new byte[65535 * 2];
-      holdingRegistersFile.readFully(holdingRegisters);
+    try (FileChannel channel = openFileChannel(path)) {
+      int size = 65535 * 2;
+      channel.truncate(size);
+      ByteBuffer holdingRegisters = ByteBuffer.allocate(size);
+      channel.read(holdingRegisters);
+      holdingRegisters.flip();
 
       tx.writeHoldingRegisters(
           holdingRegisterMap -> {
-            for (int i = 0; i < holdingRegisters.length; i += 2) {
-              byte high = holdingRegisters[i];
-              byte low = holdingRegisters[i + 1];
+            for (int i = 0; i < holdingRegisters.limit(); i += 2) {
+              byte high = holdingRegisters.get(i);
+              byte low = holdingRegisters.get(i + 1);
               if (high != 0 || low != 0) {
                 holdingRegisterMap.put(i / 2, new byte[] {high, low});
               }
@@ -614,16 +620,18 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     Path path =
         device.deviceContext.getDeviceFolderPath().resolve("inputRegisters.bin").toAbsolutePath();
 
-    try (var inputRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
-      inputRegistersFile.setLength(65535 * 2);
-      byte[] inputRegisters = new byte[65535 * 2];
-      inputRegistersFile.readFully(inputRegisters);
+    try (FileChannel channel = openFileChannel(path)) {
+      int size = 65535 * 2;
+      channel.truncate(size);
+      ByteBuffer inputRegisters = ByteBuffer.allocate(size);
+      channel.read(inputRegisters);
+      inputRegisters.flip();
 
       tx.writeInputRegisters(
           inputRegisterMap -> {
-            for (int i = 0; i < inputRegisters.length; i += 2) {
-              byte high = inputRegisters[i];
-              byte low = inputRegisters[i + 1];
+            for (int i = 0; i < inputRegisters.limit(); i += 2) {
+              byte high = inputRegisters.get(i);
+              byte low = inputRegisters.get(i + 1);
               if (high != 0 || low != 0) {
                 inputRegisterMap.put(i / 2, new byte[] {high, low});
               }
@@ -632,6 +640,18 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     } catch (IOException e) {
       logger.error("Error reading inputRegisters.bin", e);
     }
+  }
+
+  /**
+   * Opens a {@link FileChannel} for the specified file path with read, write, and create options.
+   *
+   * @param path the {@link Path} representing the file to be opened.
+   * @return the {@link FileChannel} instance associated with the specified file.
+   * @throws IOException if an I/O error occurs while opening the file.
+   */
+  private static FileChannel openFileChannel(Path path) throws IOException {
+    return FileChannel.open(
+        path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
   }
 
   private class ModificationListener implements ProcessImage.ModificationListener {
@@ -647,10 +667,20 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
             Path path =
                 device.deviceContext.getDeviceFolderPath().resolve("coils.bin").toAbsolutePath();
 
-            try (var coilsFile = new RandomAccessFile(path.toFile(), "rw")) {
+            try (FileChannel channel = openFileChannel(path)) {
+              ByteBuffer buffer = ByteBuffer.allocate(1);
+
               for (CoilModification m : modifications) {
-                coilsFile.seek(m.address());
-                coilsFile.write(m.value() ? 1 : 0);
+                buffer.clear();
+                buffer.put((byte) (m.value() ? 1 : 0));
+                buffer.flip();
+                channel.position(m.address());
+                int bytesWritten = channel.write(buffer);
+                if (bytesWritten != buffer.capacity()) {
+                  throw new IOException(
+                      "failed to write all bytes to coils.bin: wrote %s of %s"
+                          .formatted(bytesWritten, buffer.capacity()));
+                }
               }
             } catch (IOException e) {
               logger.error("Error writing coils.bin", e);
@@ -671,10 +701,20 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
                     .resolve("discreteInputs.bin")
                     .toAbsolutePath();
 
-            try (var discreteInputsFile = new RandomAccessFile(path.toFile(), "rw")) {
+            try (FileChannel channel = openFileChannel(path)) {
+              ByteBuffer buffer = ByteBuffer.allocate(1);
+
               for (DiscreteInputModification m : modifications) {
-                discreteInputsFile.seek(m.address());
-                discreteInputsFile.write(m.value() ? 1 : 0);
+                buffer.clear();
+                buffer.put((byte) (m.value() ? 1 : 0));
+                buffer.flip();
+                channel.position(m.address());
+                int bytesWritten = channel.write(buffer);
+                if (bytesWritten != buffer.capacity()) {
+                  throw new IOException(
+                      "failed to write all bytes to discreteInputs.bin: wrote %s of %s"
+                          .formatted(bytesWritten, buffer.capacity()));
+                }
               }
             } catch (IOException e) {
               logger.error("Error writing discreteInputs.bin", e);
@@ -695,11 +735,21 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
                     .resolve("holdingRegisters.bin")
                     .toAbsolutePath();
 
-            try (var holdingRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
+            try (FileChannel channel = openFileChannel(path)) {
+              ByteBuffer buffer = ByteBuffer.allocate(2);
+
               for (HoldingRegisterModification m : modifications) {
-                holdingRegistersFile.seek(m.address() * 2L);
-                holdingRegistersFile.writeByte(m.value()[0]);
-                holdingRegistersFile.writeByte(m.value()[1]);
+                buffer.clear();
+                buffer.put(m.value()[0]);
+                buffer.put(m.value()[1]);
+                buffer.flip();
+                channel.position(m.address() * 2L);
+                int bytesWritten = channel.write(buffer);
+                if (bytesWritten != buffer.capacity()) {
+                  throw new IOException(
+                      "failed to write all bytes to holdingRegisters.bin: wrote %s of %s"
+                          .formatted(bytesWritten, buffer.capacity()));
+                }
               }
             } catch (IOException e) {
               logger.error("Error writing holdingRegisters.bin", e);
@@ -720,11 +770,21 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
                     .resolve("inputRegisters.bin")
                     .toAbsolutePath();
 
-            try (var inputRegistersFile = new RandomAccessFile(path.toFile(), "rw")) {
+            try (FileChannel channel = openFileChannel(path)) {
+              ByteBuffer buffer = ByteBuffer.allocate(2);
+
               for (InputRegisterModification m : modifications) {
-                inputRegistersFile.seek(m.address() * 2L);
-                inputRegistersFile.writeByte(m.value()[0]);
-                inputRegistersFile.writeByte(m.value()[1]);
+                buffer.clear();
+                buffer.put(m.value()[0]);
+                buffer.put(m.value()[1]);
+                buffer.flip();
+                channel.position(m.address() * 2L);
+                int bytesWritten = channel.write(buffer);
+                if (bytesWritten != buffer.capacity()) {
+                  throw new IOException(
+                      "failed to write all bytes to inputRegisters.bin: wrote %s of %s"
+                          .formatted(bytesWritten, buffer.capacity()));
+                }
               }
             } catch (IOException e) {
               logger.error("Error writing inputRegisters.bin", e);
