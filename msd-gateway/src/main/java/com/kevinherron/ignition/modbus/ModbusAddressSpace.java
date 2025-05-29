@@ -551,7 +551,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     try (FileChannel channel = openFileChannel(path)) {
       channel.truncate(65535);
       ByteBuffer coils = ByteBuffer.allocate(65535);
-      channel.read(coils);
+      readChannelIntoBuffer(coils, channel);
       coils.flip();
 
       tx.writeCoils(
@@ -574,7 +574,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     try (FileChannel channel = openFileChannel(path)) {
       channel.truncate(65535);
       ByteBuffer discreteInputs = ByteBuffer.allocate(65535);
-      channel.read(discreteInputs);
+      readChannelIntoBuffer(discreteInputs, channel);
       discreteInputs.flip();
 
       tx.writeDiscreteInputs(
@@ -598,7 +598,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       int size = 65535 * 2;
       channel.truncate(size);
       ByteBuffer holdingRegisters = ByteBuffer.allocate(size);
-      channel.read(holdingRegisters);
+      readChannelIntoBuffer(holdingRegisters, channel);
       holdingRegisters.flip();
 
       tx.writeHoldingRegisters(
@@ -624,7 +624,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       int size = 65535 * 2;
       channel.truncate(size);
       ByteBuffer inputRegisters = ByteBuffer.allocate(size);
-      channel.read(inputRegisters);
+      readChannelIntoBuffer(inputRegisters, channel);
       inputRegisters.flip();
 
       tx.writeInputRegisters(
@@ -652,6 +652,23 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   private static FileChannel openFileChannel(Path path) throws IOException {
     return FileChannel.open(
         path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+  }
+
+  /**
+   * Reads data from the given {@link FileChannel} into the provided {@link ByteBuffer} until the
+   * buffer is fully filled or the end of the file is reached.
+   *
+   * @param buffer the {@link ByteBuffer} into which data will be read.
+   * @param channel the {@link FileChannel} from which data will be read.
+   * @throws IOException if an I/O error occurs during reading from the file channel.
+   */
+  private static void readChannelIntoBuffer(ByteBuffer buffer, FileChannel channel) throws IOException {
+    while (buffer.remaining() > 0) {
+      int bytesRead = channel.read(buffer);
+      if (bytesRead == -1) {
+        break; // EOF
+      }
+    }
   }
 
   private class ModificationListener implements ProcessImage.ModificationListener {
