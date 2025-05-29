@@ -662,7 +662,9 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
    * @param channel the {@link FileChannel} from which data will be read.
    * @throws IOException if an I/O error occurs during reading from the file channel.
    */
-  private static void readChannelIntoBuffer(ByteBuffer buffer, FileChannel channel) throws IOException {
+  private static void readChannelIntoBuffer(ByteBuffer buffer, FileChannel channel)
+      throws IOException {
+
     while (buffer.remaining() > 0) {
       int bytesRead = channel.read(buffer);
       if (bytesRead == -1) {
