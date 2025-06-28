@@ -22,7 +22,7 @@
 
     <!-- Test Dependencies -->
     <junit.version>5.10.2</junit.version>
-    <milo.version>1.0.0-SNAPSHOT</milo.version>
+    <milo.version>1.0.1</milo.version>
     <testcontainers-ignition.version>0.2.0</testcontainers-ignition.version>
     <slf4j.version>2.0.16</slf4j.version>
 
