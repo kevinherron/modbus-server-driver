@@ -17,7 +17,7 @@
     <maven.compiler.release>17</maven.compiler.release>
 
     <!-- Dependencies -->
-    <ignition-sdk.version>8.3.0-SNAPSHOT</ignition-sdk.version>
+    <ignition-sdk.version>8.3.0-beta1</ignition-sdk.version>
     <modbus.version>2.0.0</modbus.version>
 
     <!-- Test Dependencies -->
