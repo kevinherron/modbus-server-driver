@@ -37,4 +37,9 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
   protected @NotNull List<DeviceType> getDeviceTypes() {
     return List.of(new ModbusServerDeviceType());
   }
+
+  @Override
+  public boolean isFreeModule() {
+    return true;
+  }
 }
