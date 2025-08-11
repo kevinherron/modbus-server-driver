@@ -69,4 +69,9 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
 
     return List.of(strategy);
   }
+
+  @Override
+  public boolean isFreeModule() {
+    return true;
+  }
 }
