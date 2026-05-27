@@ -18,18 +18,18 @@
 
     <!-- Dependencies -->
     <ignition-sdk.version>8.3.0</ignition-sdk.version>
-    <modbus.version>2.0.0</modbus.version>
+    <modbus.version>2.1.5</modbus.version>
 
     <!-- Test Dependencies -->
-    <junit.version>5.10.2</junit.version>
-    <milo.version>1.0.1</milo.version>
+    <junit.version>6.1.0</junit.version>
+    <milo.version>1.1.3</milo.version>
     <testcontainers-ignition.version>0.2.0</testcontainers-ignition.version>
-    <slf4j.version>2.0.16</slf4j.version>
+    <slf4j.version>2.1.0-alpha1</slf4j.version>
 
     <!-- Plugin Dependencies -->
-    <checkstyle.version>10.21.0</checkstyle.version>
+    <checkstyle.version>13.4.2</checkstyle.version>
     <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
-    <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
+    <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
   </properties>
 
   <modules>
