@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
+import org.eclipse.milo.opcua.sdk.core.Reference;
+import org.eclipse.milo.opcua.sdk.core.Reference.Direction;
 import org.eclipse.milo.opcua.sdk.core.ValueRank;
 import org.eclipse.milo.opcua.sdk.server.AddressSpace.ReferenceResult.ReferenceList;
 import org.eclipse.milo.opcua.sdk.server.AddressSpaceFilter;
@@ -37,6 +39,7 @@ import org.eclipse.milo.opcua.sdk.server.items.DataItem;
 import org.eclipse.milo.opcua.sdk.server.items.MonitoredItem;
 import org.eclipse.milo.opcua.sdk.server.util.SubscriptionModel;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
+import org.eclipse.milo.opcua.stack.core.NodeIds;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
 import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
@@ -113,7 +116,25 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   public List<ReferenceResult> browse(
       BrowseContext context, ViewDescription viewDescription, List<NodeId> nodeIds) {
 
-    return List.of();
+    // Give each of the Nodes in ModbusAddressSpace a HasTypeDefinition reference pointing to
+    // BaseDataVariableType.
+
+    var results = new ArrayList<ReferenceResult>();
+
+    for (NodeId nodeId : nodeIds) {
+      var result =
+          ReferenceResult.of(
+              List.of(
+                  new Reference(
+                      nodeId,
+                      NodeIds.HasTypeDefinition,
+                      NodeIds.BaseDataVariableType.expanded(),
+                      Direction.FORWARD)));
+
+      results.add(result);
+    }
+
+    return results;
   }
 
   @Override
