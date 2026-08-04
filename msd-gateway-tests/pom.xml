@@ -59,6 +59,12 @@
           <plugin>
             <artifactId>maven-failsafe-plugin</artifactId>
             <version>3.5.5</version>
+            <configuration>
+              <systemPropertyVariables>
+                <ignition.image.version>${ignition-image.version}</ignition.image.version>
+                <msd.module.path>${project.basedir}/../msd-build/target/Modbus-Server-Driver-Module-unsigned.modl</msd.module.path>
+              </systemPropertyVariables>
+            </configuration>
             <executions>
               <execution>
                 <goals>
