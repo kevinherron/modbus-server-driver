@@ -326,6 +326,21 @@ class ModbusByteUtilTest {
   }
 
   @Test
+  void testGetBytesForArrayValue_ShorterThanDeclaredDimension() {
+    UaException exception =
+        assertThrows(
+            UaException.class,
+            () ->
+                ModbusByteUtil.getBytesForArrayValue(
+                    new Short[] {1, 2},
+                    new ModbusDataType.Int16(),
+                    NO_MODIFIERS,
+                    new int[] {3}));
+
+    assertEquals(StatusCodes.Bad_TypeMismatch, exception.getStatusCode().getValue());
+  }
+
+  @Test
   void testGetBytesForArrayValue_UInt16() throws UaException {
     UShort[] ushorts = new UShort[] {UShort.valueOf(1), UShort.valueOf(2), UShort.valueOf(3)};
     int[] dimensions = new int[] {ushorts.length};
