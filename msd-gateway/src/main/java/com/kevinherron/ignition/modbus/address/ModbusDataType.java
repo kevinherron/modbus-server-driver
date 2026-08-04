@@ -147,7 +147,7 @@ public sealed interface ModbusDataType
 
     @Override
     public int getRegisterCount() {
-      return (length + 1) / 2;
+      return (int) ((length + 1L) / 2L);
     }
   }
 }
