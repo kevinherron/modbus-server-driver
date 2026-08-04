@@ -18,16 +18,15 @@ import com.digitalpetri.modbus.pdu.WriteMultipleRegistersRequest;
 import com.digitalpetri.modbus.pdu.WriteSingleCoilRequest;
 import com.digitalpetri.modbus.pdu.WriteSingleRegisterRequest;
 import com.digitalpetri.modbus.tcp.client.NettyTcpClientTransport;
-import com.mussonindustrial.testcontainers.ignition.GatewayEdition;
 import com.mussonindustrial.testcontainers.ignition.IgnitionContainer;
-import com.mussonindustrial.testcontainers.ignition.Module;
+import com.mussonindustrial.testcontainers.ignition.IgnitionGatewayEdition;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
-import org.eclipse.milo.opcua.sdk.client.OpcUaClientConfigBuilder;
+import org.eclipse.milo.opcua.sdk.client.identity.UsernameProvider;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
 import org.eclipse.milo.opcua.stack.core.security.SecurityPolicy;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
@@ -39,15 +38,12 @@ import org.eclipse.milo.opcua.stack.core.util.EndpointUtil;
 import org.eclipse.milo.opcua.stack.transport.client.tcp.OpcTcpClientTransportConfigBuilder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-// TODO refactor and re-enable when there is Ignition 8.3 support
-@Disabled
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ModbusToOpcUaIT {
 
@@ -58,20 +54,25 @@ public class ModbusToOpcUaIT {
   @BeforeAll
   void setUpContainer() throws Exception {
     ignitionContainer =
-        new IgnitionContainer("inductiveautomation/ignition:8.1.43")
+        new IgnitionContainer(IgnitionTestSupport.IGNITION_IMAGE)
+            .acceptLicense()
             .withCredentials("admin", "password")
-            .withEdition(GatewayEdition.STANDARD)
-            .withGatewayBackup("./src/test/resources/ignition.gwbk", false)
-            .withModules(Module.OPC_UA)
-            .withThirdPartyModules("../msd-build/target/Modbus-Server-Driver-Module-unsigned.modl")
-            .withAdditionalExposedPort(502)
-            .withAdditionalExposedPort(62541);
+            .withEdition(IgnitionGatewayEdition.STANDARD)
+            .withAllowUnsignedModules()
+            // OPC UA is not requested here: it is a Gateway-scoped dependency of the module
+            // archive, so the 8.3 profile enables it and exposes its endpoint on our behalf.
+            .withGatewayBackup(IgnitionTestSupport.GATEWAY_BACKUP, false)
+            .withThirdPartyModule(IgnitionTestSupport.requireModuleArchive())
+            .withAdditionalExposedPort(IgnitionTestSupport.MODBUS_PORT);
 
     ignitionContainer.start();
 
-    String endpointUrl =
-        "opc.tcp://%s:%d/discovery"
-            .formatted(ignitionContainer.getHost(), ignitionContainer.getMappedPort(62541));
+    System.out.println("Ignition version: " + ignitionContainer.getIgnitionVersion());
+    System.out.println("Profile: " + ignitionContainer.getProfile().name());
+    System.out.println("Gateway URL: " + ignitionContainer.getGatewayUrl());
+
+    String endpointUrl = ignitionContainer.getOpcUaDiscoveryUrl();
+    int opcUaPort = ignitionContainer.getMappedOpcUaPort();
 
     System.out.println("Endpoint URL: " + endpointUrl);
 
@@ -83,14 +84,10 @@ public class ModbusToOpcUaIT {
                     .filter(
                         e -> Objects.equals(e.getSecurityPolicyUri(), SecurityPolicy.None.getUri()))
                     .findFirst()
-                    .map(
-                        e ->
-                            EndpointUtil.updateUrl(
-                                e,
-                                ignitionContainer.getHost(),
-                                ignitionContainer.getMappedPort(62541))),
+                    .map(e -> EndpointUtil.updateUrl(e, ignitionContainer.getHost(), opcUaPort)),
             OpcTcpClientTransportConfigBuilder::build,
-            OpcUaClientConfigBuilder::build);
+            builder ->
+                builder.setIdentityProvider(new UsernameProvider("opcuauser", "password")).build());
 
     opcUaClient.connect();
 
@@ -99,7 +96,7 @@ public class ModbusToOpcUaIT {
             NettyTcpClientTransport.create(
                 cfg -> {
                   cfg.hostname = ignitionContainer.getHost();
-                  cfg.port = ignitionContainer.getMappedPort(502);
+                  cfg.port = ignitionContainer.getMappedPort(IgnitionTestSupport.MODBUS_PORT);
                 }));
 
     modbusClient.connect();
