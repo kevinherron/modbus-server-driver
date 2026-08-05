@@ -84,6 +84,24 @@ The following combinations are also rejected:
   first, then select its bit.
 - `HR0[5]` because element indices require dimensions in the DataType declaration.
 
+### Stricter address validation
+
+Address validation is stricter than in earlier releases. Forms that previously parsed (and were
+silently reinterpreted or partially ignored) are now rejected, and tags that use them show bad
+quality after upgrading:
+
+- Register-only DataTypes on coil or discrete input areas, e.g. `C<int16>0`; those areas are
+  single bits and support only `bool`.
+- Bit specifiers on non-integer DataTypes, e.g. `C0.5` or `HR<float>0.3`, and bit indices past
+  the DataType's width.
+- Addresses whose extent passes the end of the 65,536-entry area, e.g. `HR<int32>65535`.
+- Trailing element subscripts without declared dimensions, e.g. `HR0[2]` (previously the
+  subscript was ignored and the address read `HR0`).
+- Invalid DataType modifiers, e.g. `HR<int16@EB>0` (previously ignored).
+
+Review existing tags that rely on these forms and update them to the documented syntax when
+upgrading.
+
 ### OPC UA IndexRange
 
 OPC UA `IndexRange` is supported for both reads and writes of array nodes. Use the standard OPC UA
