@@ -591,6 +591,21 @@ public class ArrayModbusToOpcUaIT {
       assertEquals("WORLDWORLD", readValue(nodeId).getValue().getValue());
     }
 
+    // The replacement length must exactly match the selected substring length.
+    @ParameterizedTest(name = "{0} scalar String size mismatch")
+    @MethodSource("registerAreas")
+    void scalarStringRangeWriteLengthMismatchIsRejectedWithoutMutation(String area)
+        throws Exception {
+
+      NodeId nodeId = nodeId(area + "<string10>" + ARRAY_OFFSET);
+      assertGood(writeValue(nodeId, "HELLOWORLD"));
+
+      assertStatus(
+          StatusCodes.Bad_IndexRangeDataMismatch,
+          writeValue(nodeId, "0:4", "NO"));
+      assertEquals("HELLOWORLD", readValue(nodeId).getValue().getValue());
+    }
+
     // OPC UA Part 4 §7.27 treats String arrays as an additional substring dimension after the
     // array dimensions.
     @ParameterizedTest(name = "{0} String array read")
@@ -618,6 +633,23 @@ public class ArrayModbusToOpcUaIT {
 
       assertArrayEquals(
           new String[] {"alpha", "BETa", "gamma", "delta"},
+          (String[]) readValue(nodeId).getValue().getValue());
+    }
+
+    // A range with only the array dimension selects complete String elements, not characters.
+    @ParameterizedTest(name = "{0} whole String elements")
+    @MethodSource("registerAreas")
+    void stringArrayElementRangesReadAndWriteWholeStrings(String area) throws Exception {
+      NodeId nodeId = nodeId(area + "<string8[4]>" + (ARRAY_OFFSET + 16));
+      assertGood(writeValue(nodeId, new String[] {"alpha", "beta", "gamma", "delta"}));
+
+      assertArrayEquals(
+          new String[] {"beta", "gamma"},
+          (String[]) readValue(nodeId, "1:2").getValue().getValue());
+
+      assertGood(writeValue(nodeId, "1:2", new String[] {"BETA", "GAMMA"}));
+      assertArrayEquals(
+          new String[] {"alpha", "BETA", "GAMMA", "delta"},
           (String[]) readValue(nodeId).getValue().getValue());
     }
 
@@ -651,6 +683,25 @@ public class ArrayModbusToOpcUaIT {
           writeValue(nodeId, testCase.indexRange(), testCase.writeValue()));
 
       assertArrayEquals(initial, (Short[]) readValue(nodeId).getValue().getValue());
+    }
+
+    // OPC UA Part 4 §7.27 requires a NumericRange component for every array dimension.
+    @Test
+    void multidimensionalRangesRequireEveryDimensionWithoutMutation() throws Exception {
+      NodeId nodeId = nodeId("HR<int16[2][2]>" + ARRAY_OFFSET);
+      Short[] initial = shorts(0, 1, 2, 3);
+      assertGood(
+          writeValue(
+              nodeId,
+              new Matrix(initial, new int[] {2, 2}, OpcUaDataType.Int16)));
+
+      assertStatus(StatusCodes.Bad_IndexRangeNoData, readValue(nodeId, "1").getStatusCode());
+      assertStatus(
+          StatusCodes.Bad_IndexRangeNoData,
+          writeValue(nodeId, "1", new Short[] {8, 9}));
+
+      Matrix actual = assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
+      assertArrayEquals(initial, (Short[]) actual.getElements());
     }
 
     // NumericRange applies only to indexed values; a scalar read must report that no indexed data
@@ -1282,6 +1333,10 @@ public class ArrayModbusToOpcUaIT {
         new InvalidRangeCase(
             "malformed read range", "1::2", null, StatusCodes.Bad_IndexRangeInvalid),
         new InvalidRangeCase(
+            "trailing colon in read range", "1:", null, StatusCodes.Bad_IndexRangeInvalid),
+        new InvalidRangeCase(
+            "trailing comma in read range", "1,", null, StatusCodes.Bad_IndexRangeInvalid),
+        new InvalidRangeCase(
             "out-of-bounds read range", "99", null, StatusCodes.Bad_IndexRangeNoData));
   }
 
@@ -1293,10 +1348,25 @@ public class ArrayModbusToOpcUaIT {
             new Short[] {9, 9},
             StatusCodes.Bad_IndexRangeInvalid),
         new InvalidRangeCase(
+            "trailing colon in write range",
+            "1:",
+            new Short[] {9},
+            StatusCodes.Bad_IndexRangeInvalid),
+        new InvalidRangeCase(
+            "trailing comma in write range",
+            "1,",
+            new Short[] {9},
+            StatusCodes.Bad_IndexRangeInvalid),
+        new InvalidRangeCase(
             "write value does not fill range",
             "2:4",
             new Short[] {9, 9},
-            StatusCodes.Bad_IndexRangeNoData));
+            StatusCodes.Bad_IndexRangeDataMismatch),
+        new InvalidRangeCase(
+            "write value has wrong element type",
+            "2:3",
+            new Integer[] {9, 9},
+            StatusCodes.Bad_TypeMismatch));
   }
 
   private static Stream<String> registerAreas() {

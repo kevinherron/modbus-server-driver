@@ -18,6 +18,7 @@ import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
 import com.kevinherron.ignition.modbus.address.ModbusDataType;
 import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.NumericRange;
 import org.eclipse.milo.opcua.sdk.core.Reference;
@@ -68,6 +70,9 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   /** Shared default for absent register entries; read-only, never mutated. */
   private static final byte[] EMPTY_REGISTER = new byte[2];
+
+  private static final Pattern NUMERIC_RANGE_PATTERN =
+      Pattern.compile("[0-9]+(?::[0-9]+)?(?:,[0-9]+(?::[0-9]+)?)*");
 
   private static final Logger logger = LoggerFactory.getLogger(ModbusAddressSpace.class);
 
@@ -229,7 +234,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
     NumericRange range = null;
     if (indexRange != null && !indexRange.isEmpty()) {
-      range = NumericRange.parse(indexRange);
+      range = parseNumericRange(indexRange);
       // OPC UA Part 4 defines IndexRange on scalar String values as sub-string selection.
       if (address instanceof ScalarAddress
           && !(address.getDataType() instanceof ModbusDataType.String)) {
@@ -286,14 +291,15 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   }
 
   static Object readValueAtRange(Object value, NumericRange range) throws UaException {
-    Object valueAtRange;
     if (value instanceof Matrix matrix) {
-      valueAtRange = NumericRange.readFromValueAtRange(matrix.nestedArrayValue(), range);
-      if (ArrayUtil.getValueRank(valueAtRange) > 1) {
-        valueAtRange = new Matrix(valueAtRange);
-      }
-    } else {
-      valueAtRange = NumericRange.readFromValueAtRange(value, range);
+      value = matrix.nestedArrayValue();
+    }
+
+    validateRangeDimensionCount(value, range);
+
+    Object valueAtRange = NumericRange.readFromValueAtRange(value, range);
+    if (ArrayUtil.getValueRank(valueAtRange) > 1) {
+      valueAtRange = new Matrix(valueAtRange);
     }
 
     return valueAtRange;
@@ -528,7 +534,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       return variant;
     }
 
-    NumericRange range = NumericRange.parse(indexRange);
+    NumericRange range = parseNumericRange(indexRange);
     // Arrays support element ranges; scalar String values support sub-string ranges.
     boolean rangeSupported =
         address instanceof ArrayAddress || address.getDataType() instanceof ModbusDataType.String;
@@ -604,8 +610,11 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   static Object writeValueAtRange(Object currentValue, Object updateValue, NumericRange range)
       throws UaException {
 
-    if (currentValue == null || updateValue == null) {
+    if (currentValue == null) {
       throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+    }
+    if (updateValue == null) {
+      throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
     }
 
     if (currentValue instanceof Matrix matrix) {
@@ -615,20 +624,32 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       updateValue = matrix.nestedArrayValue();
     }
 
+    validateRangeDimensionCount(currentValue, range);
+
+    if (ArrayUtil.getBoxedType(currentValue) != ArrayUtil.getBoxedType(updateValue)) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch);
+    }
+
     int[] updateDimensions = ArrayUtil.getDimensions(updateValue);
     NumericRange.Bounds[] bounds = range.getBounds();
     // For String values an extra final range dimension selects characters within an
     // element, so the update value has one fewer dimension than the range has bounds.
     boolean subStringRange =
-        updateDimensions.length == bounds.length - 1 && hasStringLeaf(updateValue);
+        hasStringLeaf(currentValue)
+            && bounds.length == ArrayUtil.getDimensions(currentValue).length + 1;
     if (!subStringRange && updateDimensions.length != bounds.length) {
-      throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+      throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
     }
     for (int i = 0; i < updateDimensions.length; i++) {
       int expectedLength = bounds[i].getHigh() - bounds[i].getLow() + 1;
       if (updateDimensions[i] != expectedLength) {
-        throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+        throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
       }
+    }
+    if (subStringRange) {
+      NumericRange.Bounds stringBounds = bounds[bounds.length - 1];
+      int expectedLength = stringBounds.getHigh() - stringBounds.getLow() + 1;
+      validateStringLengths(updateValue, expectedLength);
     }
 
     Object valueAtRange = NumericRange.writeToValueAtRange(currentValue, updateValue, range);
@@ -637,6 +658,45 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
 
     return valueAtRange;
+  }
+
+  private static NumericRange parseNumericRange(String indexRange) throws UaException {
+    if (!NUMERIC_RANGE_PATTERN.matcher(indexRange).matches()) {
+      throw new UaException(StatusCodes.Bad_IndexRangeInvalid);
+    }
+    return NumericRange.parse(indexRange);
+  }
+
+  private static void validateRangeDimensionCount(Object value, NumericRange range)
+      throws UaException {
+
+    int valueRank = ArrayUtil.getDimensions(value).length;
+    int rangeDimensions = range.getBounds().length;
+    boolean valid =
+        hasStringLeaf(value)
+            ? rangeDimensions > 0
+                && (rangeDimensions == valueRank || rangeDimensions == valueRank + 1)
+            : rangeDimensions == valueRank;
+
+    if (!valid) {
+      throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+    }
+  }
+
+  private static void validateStringLengths(Object value, int expectedLength) throws UaException {
+    if (value == null) {
+      throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
+    }
+    if (value instanceof String string) {
+      if (string.length() != expectedLength) {
+        throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
+      }
+      return;
+    }
+
+    for (int i = 0; i < Array.getLength(value); i++) {
+      validateStringLengths(Array.get(value, i), expectedLength);
+    }
   }
 
   private static boolean hasStringLeaf(Object value) {

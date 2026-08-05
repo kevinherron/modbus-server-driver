@@ -367,13 +367,17 @@ class ModbusAddressSpaceTest {
             List.of(
                 new ModbusAddressSpace.ValueRead(array, "1::2"),
                 new ModbusAddressSpace.ValueRead(scalar, "1::2"),
+                new ModbusAddressSpace.ValueRead(array, "1:"),
+                new ModbusAddressSpace.ValueRead(array, "1,"),
                 new ModbusAddressSpace.ValueRead(array, "10"),
                 new ModbusAddressSpace.ValueRead(scalar, "0")));
 
     assertStatus(StatusCodes.Bad_IndexRangeInvalid, values.get(0).getStatusCode());
     assertStatus(StatusCodes.Bad_IndexRangeInvalid, values.get(1).getStatusCode());
-    assertStatus(StatusCodes.Bad_IndexRangeNoData, values.get(2).getStatusCode());
-    assertStatus(StatusCodes.Bad_IndexRangeNoData, values.get(3).getStatusCode());
+    assertStatus(StatusCodes.Bad_IndexRangeInvalid, values.get(2).getStatusCode());
+    assertStatus(StatusCodes.Bad_IndexRangeInvalid, values.get(3).getStatusCode());
+    assertStatus(StatusCodes.Bad_IndexRangeNoData, values.get(4).getStatusCode());
+    assertStatus(StatusCodes.Bad_IndexRangeNoData, values.get(5).getStatusCode());
   }
 
   @Test
@@ -390,10 +394,14 @@ class ModbusAddressSpaceTest {
             List.of(
                 new ModbusAddressSpace.ValueWrite(
                     register, new Variant((short) 99), "1::2"),
-                new ModbusAddressSpace.ValueWrite(coil, new Variant(false), "1::2")));
+                new ModbusAddressSpace.ValueWrite(coil, new Variant(false), "1::2"),
+                new ModbusAddressSpace.ValueWrite(register, new Variant((short) 99), "1:"),
+                new ModbusAddressSpace.ValueWrite(coil, new Variant(false), "1,")));
 
     assertStatus(StatusCodes.Bad_IndexRangeInvalid, statuses.get(0));
     assertStatus(StatusCodes.Bad_IndexRangeInvalid, statuses.get(1));
+    assertStatus(StatusCodes.Bad_IndexRangeInvalid, statuses.get(2));
+    assertStatus(StatusCodes.Bad_IndexRangeInvalid, statuses.get(3));
     assertEquals(
         (short) 7,
         ModbusAddressSpace.readValueAttribute(processImage, register, null).getValue());
@@ -415,11 +423,80 @@ class ModbusAddressSpaceTest {
                 new ModbusAddressSpace.ValueWrite(
                     address, new Variant(new Short[] {90, 91}), "2:4")));
 
-    assertTrue(statuses.get(0).isBad());
+    assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, statuses.get(0));
     assertArrayEquals(
         initial,
         (Short[])
             ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+  }
+
+  @Test
+  void multidimensionalRangesRequireEveryDimensionWithoutMutation() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<int16[2][2]>0");
+    Short[] initial = shorts(0, 4);
+    writeValue(processImage, address, new Matrix(initial, new int[] {2, 2}));
+
+    DataValue read =
+        ModbusAddressSpace.readValueAttributes(
+                processImage, List.of(new ModbusAddressSpace.ValueRead(address, "1")))
+            .get(0);
+    StatusCode write =
+        ModbusAddressSpace.writeValueAttributes(
+                processImage,
+                List.of(
+                    new ModbusAddressSpace.ValueWrite(
+                        address, new Variant(new Short[] {8, 9}), "1")))
+            .get(0);
+
+    assertStatus(StatusCodes.Bad_IndexRangeNoData, read.getStatusCode());
+    assertStatus(StatusCodes.Bad_IndexRangeNoData, write);
+    Matrix actual =
+        assertInstanceOf(
+            Matrix.class,
+            ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+    assertArrayEquals(initial, (Short[]) actual.getElements());
+  }
+
+  @Test
+  void rangedWriteElementTypeMismatchDoesNotMutateProcessImage() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<int16[4]>0");
+    Short[] initial = shorts(0, 4);
+    writeValue(processImage, address, initial);
+
+    StatusCode status =
+        ModbusAddressSpace.writeValueAttributes(
+                processImage,
+                List.of(
+                    new ModbusAddressSpace.ValueWrite(
+                        address, new Variant(new Integer[] {8, 9}), "1:2")))
+            .get(0);
+
+    assertStatus(StatusCodes.Bad_TypeMismatch, status);
+    assertArrayEquals(
+        initial,
+        (Short[])
+            ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+  }
+
+  @Test
+  void stringRangeLengthMismatchDoesNotMutateProcessImage() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<string10>0");
+    writeValue(processImage, address, "HELLOWORLD");
+
+    StatusCode status =
+        ModbusAddressSpace.writeValueAttributes(
+                processImage,
+                List.of(
+                    new ModbusAddressSpace.ValueWrite(address, new Variant("NO"), "0:4")))
+            .get(0);
+
+    assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, status);
+    assertEquals(
+        "HELLOWORLD",
+        ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
   }
 
   @Test
@@ -454,6 +531,24 @@ class ModbusAddressSpaceTest {
 
     assertArrayEquals(
         new String[] {"alpha", "BETa", "gamma", "delta"},
+        (String[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+  }
+
+  @Test
+  void stringArrayElementRangeReadsAndWritesWholeStrings() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<string8[4]>0");
+    writeValue(processImage, address, new String[] {"alpha", "beta", "gamma", "delta"});
+
+    assertArrayEquals(
+        new String[] {"beta", "gamma"},
+        (String[]) ModbusAddressSpace.readValueAttribute(processImage, address, "1:2").getValue());
+
+    ModbusAddressSpace.writeValueAttribute(
+        processImage, address, new Variant(new String[] {"BETA", "GAMMA"}), "1:2");
+
+    assertArrayEquals(
+        new String[] {"alpha", "BETA", "GAMMA", "delta"},
         (String[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
   }
 
