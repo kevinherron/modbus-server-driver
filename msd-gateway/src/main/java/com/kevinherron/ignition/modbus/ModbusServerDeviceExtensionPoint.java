@@ -10,9 +10,16 @@ import com.inductiveautomation.ignition.gateway.web.nav.ExtensionPointResourceFo
 import com.inductiveautomation.ignition.gateway.web.nav.WebUiComponent;
 import java.util.Optional;
 
+/**
+ * Registers the Modbus server device type with Ignition and defines its configuration boundary.
+ *
+ * <p>The extension point supplies the web configuration schema, validates settings before device
+ * creation, and creates {@link ModbusServerDevice} instances for the Ignition device lifecycle.
+ */
 public class ModbusServerDeviceExtensionPoint
     extends DeviceExtensionPoint<ModbusServerDeviceConfig> {
 
+  /** Creates the extension point registered by the gateway module hook. */
   protected ModbusServerDeviceExtensionPoint() {
     super(
         "com.kevinherron.modbus-server-driver",
@@ -73,6 +80,32 @@ public class ModbusServerDeviceExtensionPoint
     } catch (Exception e) {
       errors.addFieldMessage("browsing.inputRegisterBrowseRanges", "invalid input register ranges");
     }
+
+    try {
+      validateUnitIdBrowseRanges(settings.browsing().unitIdBrowseRanges());
+    } catch (IllegalArgumentException e) {
+      errors.addFieldMessage("browsing.unitIdBrowseRanges", "invalid unit ID ranges");
+    }
+  }
+
+  /**
+   * Validates the grammar and bounds of unit IDs selected for OPC UA browsing.
+   *
+   * <p>An empty value is valid and selects no unit folders. Entries are comma-separated unit IDs
+   * or inclusive ranges, and every bound must be between 0 and 255. This setting affects browsing
+   * only; it is not a protocol allowlist.
+   *
+   * @param ranges the unit ID browse-range expression.
+   * @throws IllegalArgumentException if an entry is malformed, reversed, or out of range.
+   */
+  static void validateUnitIdBrowseRanges(String ranges) {
+    if (ranges == null || ranges.isEmpty()) {
+      return;
+    }
+
+    // Delegating to the runtime parser guarantees validation accepts exactly the expressions
+    // BrowsableAddressSpace accepts at device startup.
+    BrowsableAddressSpace.expandUnitIdRanges(ranges);
   }
 
   @Override

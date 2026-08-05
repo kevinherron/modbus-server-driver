@@ -1,11 +1,19 @@
 package com.kevinherron.ignition.modbus;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.digitalpetri.modbus.server.ProcessImage;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ArrayAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,12 +31,16 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
 import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ModbusAddressSpaceTest {
+
+  @TempDir Path temporaryDirectory;
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("readBooleansArguments")
@@ -718,6 +730,224 @@ class ModbusAddressSpaceTest {
 
     assertEquals(2, statuses.size());
     assertTrue(statuses.stream().allMatch(status -> status != null && status.isGood()));
+  }
+
+  @Nested
+  class PerUnitRouting {
+
+    // Unified mode must retain its legacy aliasing semantics even when callers use the newly
+    // accepted unit-qualified OPC UA syntax.
+    @Test
+    void unifiedModeAliasesQualifiedAndUnqualifiedAddresses() throws Exception {
+      try (ProcessImageManager manager = processImageManager(false)) {
+        List<StatusCode> statuses =
+            ModbusAddressSpace.writeValueAttributes(
+                manager,
+                List.of(
+                    valueWrite("HR<int16>0", (short) 11, null),
+                    valueWrite("7.HR<int16>0", (short) 22, null)));
+
+        assertAllGood(2, statuses);
+
+        List<DataValue> values =
+            ModbusAddressSpace.readValueAttributes(
+                manager,
+                List.of(
+                    valueRead("HR<int16>0", null),
+                    valueRead("0.HR<int16>0", null),
+                    valueRead("7.HR<int16>0", null)));
+
+        assertEquals(List.of((short) 22, (short) 22, (short) 22), scalarValues(values));
+      }
+    }
+
+    // Unqualified addresses are the unit-0 alias in separate mode, while boundary unit 255 must
+    // remain independently addressable.
+    @Test
+    void separateModeMapsUnqualifiedAddressesToUnitZero() throws Exception {
+      try (ProcessImageManager manager = processImageManager(true)) {
+        List<StatusCode> statuses =
+            ModbusAddressSpace.writeValueAttributes(
+                manager,
+                List.of(
+                    valueWrite("HR<int16>0", (short) 10, null),
+                    valueWrite("1.HR<int16>0", (short) 20, null),
+                    valueWrite("255.HR<int16>0", (short) 30, null)));
+
+        assertAllGood(3, statuses);
+
+        List<DataValue> values =
+            ModbusAddressSpace.readValueAttributes(
+                manager,
+                List.of(
+                    valueRead("0.HR<int16>0", null),
+                    valueRead("HR<int16>0", null),
+                    valueRead("1.HR<int16>0", null),
+                    valueRead("255.HR<int16>0", null)));
+
+        assertEquals(
+            List.of((short) 10, (short) 10, (short) 20, (short) 30),
+            scalarValues(values));
+      }
+    }
+
+    // Internally grouping operations by image must not reorder per-item statuses or values at the
+    // OPC UA service boundary, including failures interleaved with successful operations.
+    @Test
+    void mixedUnitBatchPreservesRequestOrderForValuesAndStatuses() throws Exception {
+      try (ProcessImageManager manager = processImageManager(true)) {
+        List<StatusCode> statuses =
+            ModbusAddressSpace.writeValueAttributes(
+                manager,
+                List.of(
+                    valueWrite("1.C0", true, null),
+                    valueWrite("2.HR<int16>0", (short) 22, null),
+                    valueWrite("1.DI0", true, null),
+                    valueWrite("2.IR<int16>0", (short) 44, null),
+                    valueWrite("1.HR<int16>1", "not a short", null)));
+
+        assertEquals(5, statuses.size());
+        assertAllGood(4, statuses.subList(0, 4));
+        assertStatus(StatusCodes.Bad_TypeMismatch, statuses.get(4));
+
+        List<DataValue> values =
+            ModbusAddressSpace.readValueAttributes(
+                manager,
+                List.of(
+                    valueRead("2.IR<int16>0", null),
+                    valueRead("1.C0", null),
+                    valueRead("2.HR<int16>0", null),
+                    valueRead("1.DI0", null)));
+
+        assertEquals(List.of((short) 44, true, (short) 22, true), scalarValues(values));
+      }
+    }
+
+    // Sequential transactions may be split by unit, but writes targeting one image must still be
+    // applied in request order so the final value reflects the last write.
+    @Test
+    void mixedUnitWritesPreserveOrderWithinEachImage() throws Exception {
+      try (ProcessImageManager manager = processImageManager(true)) {
+        List<StatusCode> statuses =
+            ModbusAddressSpace.writeValueAttributes(
+                manager,
+                List.of(
+                    valueWrite("1.HR<int16>0", (short) 1, null),
+                    valueWrite("2.HR<int16>0", (short) 8, null),
+                    valueWrite("1.HR<int16>0", (short) 3, null)));
+
+        assertAllGood(3, statuses);
+        assertEquals(
+            List.of((short) 3, (short) 8),
+            scalarValues(
+                ModbusAddressSpace.readValueAttributes(
+                    manager,
+                    List.of(
+                        valueRead("1.HR<int16>0", null),
+                        valueRead("2.HR<int16>0", null)))));
+      }
+    }
+
+    // A storage failure for one lazily initialized unit must not abort unrelated items in the same
+    // OPC UA request. The failed unit remains unavailable rather than publishing an empty image.
+    @Test
+    void lazyPersistenceFailureReturnsPerItemInternalError() throws Exception {
+      Path deviceRoot = temporaryDirectory.resolve("device");
+      Files.createDirectories(deviceRoot.resolve("units"));
+      Files.createFile(deviceRoot.resolve("units/1"));
+
+      try (var manager = new ProcessImageManager(true, true, deviceRoot, Runnable::run)) {
+        List<StatusCode> statuses =
+            ModbusAddressSpace.writeValueAttributes(
+                manager,
+                List.of(
+                    valueWrite("1.HR<int16>0", (short) 11, null),
+                    valueWrite("2.HR<int16>0", (short) 22, null)));
+
+        assertStatus(StatusCodes.Bad_InternalError, statuses.get(0));
+        assertTrue(statuses.get(1).isGood());
+
+        List<DataValue> values =
+            ModbusAddressSpace.readValueAttributes(
+                manager,
+                List.of(
+                    valueRead("1.HR<int16>0", null),
+                    valueRead("2.HR<int16>0", null)));
+
+        assertStatus(StatusCodes.Bad_InternalError, values.get(0).getStatusCode());
+        assertEquals((short) 22, values.get(1).getValue().getValue());
+      }
+    }
+
+    @Test
+    void accessRacingManagerShutdownReturnsBadShutdown() throws Exception {
+      ProcessImageManager manager = processImageManager(true);
+      manager.close();
+
+      List<StatusCode> statuses =
+          ModbusAddressSpace.writeValueAttributes(
+              manager, List.of(valueWrite("1.HR<int16>0", (short) 11, null)));
+      List<DataValue> values =
+          ModbusAddressSpace.readValueAttributes(
+              manager, List.of(valueRead("1.HR<int16>0", null)));
+
+      assertStatus(StatusCodes.Bad_Shutdown, statuses.get(0));
+      assertStatus(StatusCodes.Bad_Shutdown, values.get(0).getStatusCode());
+    }
+
+    // Adding a unit qualifier must not bypass the existing OPC UA IndexRange semantics for array
+    // writes or overwrite array elements outside the requested range.
+    @Test
+    void unitQualifiedArrayWritesHonorIndexRange() throws Exception {
+      try (ProcessImageManager manager = processImageManager(true)) {
+        List<StatusCode> initialStatuses =
+            ModbusAddressSpace.writeValueAttributes(
+                manager,
+                List.of(valueWrite("1.HR<int16[4]>10", new Short[] {1, 2, 3, 4}, null)));
+        assertAllGood(1, initialStatuses);
+
+        List<StatusCode> statuses =
+            ModbusAddressSpace.writeValueAttributes(
+                manager,
+                List.of(valueWrite("1.HR<int16[4]>10", new Short[] {8, 9}, "1:2")));
+
+        assertAllGood(1, statuses);
+        Object value =
+            ModbusAddressSpace.readValueAttributes(
+                    manager, List.of(valueRead("1.HR<int16[4]>10", null)))
+                .get(0)
+                .getValue()
+                .getValue();
+        assertArrayEquals(new Short[] {1, 8, 9, 4}, (Short[]) value);
+      }
+    }
+  }
+
+  private static ProcessImageManager processImageManager(boolean separatePerUnitId) {
+    return new ProcessImageManager(
+        separatePerUnitId, false, Path.of("unused-process-image-test-data"), Runnable::run);
+  }
+
+  private static ModbusAddressSpace.ValueRead valueRead(String address, String indexRange)
+      throws Exception {
+    return new ModbusAddressSpace.ValueRead(ModbusAddressParser.parse(address), indexRange);
+  }
+
+  private static ModbusAddressSpace.ValueWrite valueWrite(
+      String address, Object value, String indexRange) throws Exception {
+    return new ModbusAddressSpace.ValueWrite(
+        ModbusAddressParser.parse(address), new Variant(value), indexRange);
+  }
+
+  private static List<Object> scalarValues(List<DataValue> values) {
+    return values.stream().map(value -> value.getValue().getValue()).toList();
+  }
+
+  private static void assertAllGood(int expectedCount, List<StatusCode> statuses) {
+    assertEquals(expectedCount, statuses.size(), "status count must match the request count");
+    assertTrue(
+        statuses.stream().allMatch(status -> status != null && status.isGood()),
+        () -> "expected all Good statuses but got " + statuses);
   }
 
   private static void writeValue(
