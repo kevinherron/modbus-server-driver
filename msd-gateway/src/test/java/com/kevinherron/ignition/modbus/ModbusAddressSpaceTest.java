@@ -37,7 +37,7 @@ class ModbusAddressSpaceTest {
 
     ModbusAddress address = ModbusAddressParser.parse(addressString);
     assertInstanceOf(ArrayAddress.class, address, "Address must be an array address");
-    boolean[] values = ModbusAddressSpace.readBooleans(booleans, (ArrayAddress) address);
+    boolean[] values = ModbusValueAccess.readBooleans(booleans, (ArrayAddress) address);
     assertArrayEquals(expectedValues, values);
   }
 
@@ -47,7 +47,7 @@ class ModbusAddressSpaceTest {
       throws Exception {
 
     ModbusAddress address = ModbusAddressParser.parse(addressString);
-    byte[] bytes = ModbusAddressSpace.readRegisters(registers, address);
+    byte[] bytes = ModbusValueAccess.readRegisters(registers, address);
     assertArrayEquals(expectedBytes, bytes);
   }
 
@@ -62,7 +62,7 @@ class ModbusAddressSpaceTest {
     Map<Integer, Boolean> booleanMap = new java.util.HashMap<>();
     Variant variant = new Variant(value);
 
-    ModbusAddressSpace.writeBooleanArray(booleanMap, variant, (ArrayAddress) address);
+    ModbusValueAccess.writeBooleanArray(booleanMap, (ArrayAddress) address, variant);
 
     assertEquals(expectedMap.size(), booleanMap.size(), "Map size should match");
     for (Map.Entry<Integer, Boolean> entry : expectedMap.entrySet()) {
@@ -80,7 +80,7 @@ class ModbusAddressSpaceTest {
 
     ModbusAddress address = ModbusAddressParser.parse(addressString);
 
-    byte[] bytes = ModbusAddressSpace.getRegisterWriteBytes(address, new Variant(value));
+    byte[] bytes = ModbusValueAccess.getRegisterWriteBytes(address, new Variant(value));
 
     assertArrayEquals(expectedBytes, bytes);
   }
@@ -118,14 +118,14 @@ class ModbusAddressSpaceTest {
     ModbusAddress address = ModbusAddressParser.parse("HR<int16[10]>0");
     Short[] value = new Short[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     byte[] writtenBytes =
-        ModbusAddressSpace.getRegisterWriteBytes(address, new Variant(value));
+        ModbusValueAccess.getRegisterWriteBytes(address, new Variant(value));
     Map<Integer, byte[]> registers = new java.util.HashMap<>();
 
     for (int i = 0; i < writtenBytes.length / 2; i++) {
       registers.put(i, new byte[] {writtenBytes[i * 2], writtenBytes[i * 2 + 1]});
     }
 
-    assertArrayEquals(writtenBytes, ModbusAddressSpace.readRegisters(registers, address));
+    assertArrayEquals(writtenBytes, ModbusValueAccess.readRegisters(registers, address));
   }
 
   @Test
@@ -133,8 +133,8 @@ class ModbusAddressSpaceTest {
     ArrayAddress address = arrayAddress("C<bool[2][2]>0");
 
     Object value =
-        ModbusAddressSpace.shapeBooleanArray(
-            new boolean[] {true, false, false, true}, address);
+        ModbusValueAccess.shapeBooleanArray(
+            address, new boolean[] {true, false, false, true});
 
     Matrix matrix = assertInstanceOf(Matrix.class, value);
     assertArrayEquals(new int[] {2, 2}, matrix.getDimensions());
@@ -148,8 +148,8 @@ class ModbusAddressSpaceTest {
     ArrayAddress address = arrayAddress("DI<bool[2][3]>0");
 
     Object value =
-        ModbusAddressSpace.shapeBooleanArray(
-            new boolean[] {true, false, true, false, true, false}, address);
+        ModbusValueAccess.shapeBooleanArray(
+            address, new boolean[] {true, false, true, false, true, false});
 
     Matrix matrix = assertInstanceOf(Matrix.class, value);
     assertArrayEquals(new int[] {2, 3}, matrix.getDimensions());
@@ -165,7 +165,7 @@ class ModbusAddressSpaceTest {
     ArrayAddress address = arrayAddress("C<bool[3]>0");
 
     Object value =
-        ModbusAddressSpace.shapeBooleanArray(new boolean[] {true, false, true}, address);
+        ModbusValueAccess.shapeBooleanArray(address, new boolean[] {true, false, true});
 
     assertArrayEquals(
         new Boolean[] {true, false, true}, assertInstanceOf(Boolean[].class, value));
@@ -177,8 +177,8 @@ class ModbusAddressSpaceTest {
     Matrix matrix =
         assertInstanceOf(
             Matrix.class,
-            ModbusAddressSpace.shapeBooleanArray(
-                new boolean[] {true, false, false, true}, address));
+            ModbusValueAccess.shapeBooleanArray(
+                address, new boolean[] {true, false, false, true}));
 
     Variant valueRank = ModbusAddressSpace.readAddressAttribute(AttributeId.ValueRank, address);
     Variant arrayDimensions =
@@ -194,11 +194,11 @@ class ModbusAddressSpaceTest {
   void shapedCoilMatrixCanBeWrittenBackToSameAddress() throws Exception {
     ArrayAddress address = arrayAddress("C<bool[2][2]>0");
     Object value =
-        ModbusAddressSpace.shapeBooleanArray(
-            new boolean[] {true, false, false, true}, address);
+        ModbusValueAccess.shapeBooleanArray(
+            address, new boolean[] {true, false, false, true});
     Map<Integer, Boolean> booleans = new HashMap<>();
 
-    ModbusAddressSpace.writeBooleanArray(booleans, new Variant(value), address);
+    ModbusValueAccess.writeBooleanArray(booleans, address, new Variant(value));
 
     assertEquals(
         Map.of(
@@ -660,8 +660,8 @@ class ModbusAddressSpaceTest {
         assertThrows(
             UaException.class,
             () ->
-                ModbusAddressSpace.writeBooleanArray(
-                    booleans, new Variant(new Boolean[] {true, null, false}), address));
+                ModbusValueAccess.writeBooleanArray(
+                    booleans, address, new Variant(new Boolean[] {true, null, false})));
 
     assertEquals(StatusCodes.Bad_TypeMismatch, exception.getStatusCode().getValue());
     assertTrue(booleans.isEmpty());
@@ -672,10 +672,10 @@ class ModbusAddressSpaceTest {
     ArrayAddress address = arrayAddress("C<bool[2][2]>0");
     Map<Integer, Boolean> booleans = new HashMap<>();
 
-    ModbusAddressSpace.writeBooleanArray(
+    ModbusValueAccess.writeBooleanArray(
         booleans,
-        new Variant(Matrix.ofBoolean(new boolean[][] {{true, false}, {false, true}})),
-        address);
+        address,
+        new Variant(Matrix.ofBoolean(new boolean[][] {{true, false}, {false, true}})));
 
     assertEquals(Map.of(0, true, 1, false, 2, false, 3, true), booleans);
   }
@@ -749,7 +749,7 @@ class ModbusAddressSpaceTest {
     UaException exception =
         assertThrows(
             UaException.class,
-            () -> ModbusAddressSpace.getRegisterWriteBytes(address, new Variant(value)));
+            () -> ModbusValueAccess.getRegisterWriteBytes(address, new Variant(value)));
 
     assertEquals(StatusCodes.Bad_TypeMismatch, exception.getStatusCode().getValue());
   }
