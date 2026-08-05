@@ -553,6 +553,134 @@ class ModbusAddressSpaceTest {
   }
 
   @Test
+  void rangedStringElementWriteDoesNotDisturbUnselectedRegisters() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<string4[2]>0");
+    // Element 0 holds bytes a String round-trip cannot represent: content after an embedded NUL.
+    processImage.with(
+        tx ->
+            tx.writeHoldingRegisters(
+                registers -> {
+                  registers.put(0, new byte[] {0x00, 0x41});
+                  registers.put(1, new byte[] {0x42, 0x43});
+                }));
+
+    ModbusAddressSpace.writeValueAttribute(
+        processImage, address, new Variant(new String[] {"WX"}), "1");
+
+    byte[][] element0 =
+        processImage.get(
+            tx ->
+                tx.readHoldingRegisters(
+                    registers -> new byte[][] {registers.get(0), registers.get(1)}));
+    assertArrayEquals(new byte[] {0x00, 0x41}, element0[0]);
+    assertArrayEquals(new byte[] {0x42, 0x43}, element0[1]);
+    assertArrayEquals(
+        new String[] {"", "WX"},
+        (String[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+  }
+
+  @Test
+  void rangedCoilWritePreservesNeighbours() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("C<bool[6]>0");
+    writeValue(processImage, address, new Boolean[] {true, true, true, true, true, true});
+
+    ModbusAddressSpace.writeValueAttribute(
+        processImage, address, new Variant(new Boolean[] {false, false}), "2:3");
+
+    assertArrayEquals(
+        new Boolean[] {true, true, false, false, true, true},
+        (Boolean[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+  }
+
+  @Test
+  void subStringWriteRejectsMergeExceedingByteCapacity() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<string10>0");
+    writeValue(processImage, address, "HELLOWORLD");
+
+    StatusCode status =
+        ModbusAddressSpace.writeValueAttributes(
+                processImage,
+                List.of(
+                    new ModbusAddressSpace.ValueWrite(
+                        address, new Variant("ÉÉÉÉÉ"), "0:4")))
+            .get(0);
+
+    assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, status);
+    assertEquals(
+        "HELLOWORLD",
+        ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+  }
+
+  @Test
+  void subStringWriteWithMismatchedShapeReturnsDataMismatch() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<string10>0");
+    writeValue(processImage, address, "HELLOWORLD");
+
+    StatusCode status =
+        ModbusAddressSpace.writeValueAttributes(
+                processImage,
+                List.of(
+                    new ModbusAddressSpace.ValueWrite(
+                        address, new Variant(new String[] {"abc", "def", "ghi"}), "0:2")))
+            .get(0);
+
+    assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, status);
+    assertEquals(
+        "HELLOWORLD",
+        ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+  }
+
+  @Test
+  void hugeRangedWriteReturnsNoDataInsteadOfMismatch() throws Exception {
+    ProcessImage processImage = new ProcessImage();
+    ModbusAddress address = ModbusAddressParser.parse("HR<int16[4]>0");
+    writeValue(processImage, address, shorts(0, 4));
+
+    StatusCode status =
+        ModbusAddressSpace.writeValueAttributes(
+                processImage,
+                List.of(
+                    new ModbusAddressSpace.ValueWrite(
+                        address, new Variant(new Short[] {1, 2}), "0:2147483647")))
+            .get(0);
+
+    assertStatus(StatusCodes.Bad_IndexRangeNoData, status);
+  }
+
+  @Test
+  void writeBooleanArrayRejectsNullElements() throws Exception {
+    ArrayAddress address = arrayAddress("C<bool[3]>0");
+    Map<Integer, Boolean> booleans = new HashMap<>();
+
+    UaException exception =
+        assertThrows(
+            UaException.class,
+            () ->
+                ModbusAddressSpace.writeBooleanArray(
+                    booleans, new Variant(new Boolean[] {true, null, false}), address));
+
+    assertEquals(StatusCodes.Bad_TypeMismatch, exception.getStatusCode().getValue());
+    assertTrue(booleans.isEmpty());
+  }
+
+  @Test
+  void writeBooleanArrayAcceptsPrimitiveBackedMatrix() throws Exception {
+    ArrayAddress address = arrayAddress("C<bool[2][2]>0");
+    Map<Integer, Boolean> booleans = new HashMap<>();
+
+    ModbusAddressSpace.writeBooleanArray(
+        booleans,
+        new Variant(Matrix.ofBoolean(new boolean[][] {{true, false}, {false, true}})),
+        address);
+
+    assertEquals(Map.of(0, true, 1, false, 2, false, 3, true), booleans);
+  }
+
+  @Test
   void threeReadBatchWithMiddleRangeReturnsCompleteResults() throws Exception {
     ProcessImage processImage = new ProcessImage();
     ModbusAddress first = ModbusAddressParser.parse("HR<int16>0");

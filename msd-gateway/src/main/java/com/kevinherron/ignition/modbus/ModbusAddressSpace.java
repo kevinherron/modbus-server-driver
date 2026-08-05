@@ -21,11 +21,13 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -191,6 +193,17 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         } else {
           try {
             Variant v = readNonValueAttribute(readValueId.getNodeId(), attributeId, address);
+            String indexRange = readValueId.getIndexRange();
+            if (indexRange != null && !indexRange.isEmpty()) {
+              // OPC UA Part 4: an IndexRange applies to any attribute; non-array attributes
+              // must return Bad_IndexRangeNoData rather than the full value.
+              NumericRange range = parseNumericRange(indexRange);
+              Object value = v.getValue();
+              if (value == null) {
+                throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+              }
+              v = new Variant(readValueAtRange(value, range));
+            }
             pending.value = new DataValue(v);
           } catch (UaException e) {
             pending.value = new DataValue(e.getStatusCode());
@@ -213,24 +226,48 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   }
 
   static List<DataValue> readValueAttributes(ProcessImage processImage, List<ValueRead> reads) {
-
-    var values = new ArrayList<DataValue>(reads.size());
-    for (ValueRead read : reads) {
-      try {
-        values.add(
-            new DataValue(readValueAttribute(processImage, read.address(), read.indexRange())));
-      } catch (UaException e) {
-        values.add(new DataValue(e.getStatusCode()));
-      } catch (RuntimeException e) {
-        logger.error("Error reading value: address={}", read.address(), e);
-        values.add(new DataValue(StatusCodes.Bad_InternalError));
-      }
+    if (reads.isEmpty()) {
+      return List.of();
     }
-    return values;
+
+    // One transaction for the whole batch: a single lock acquisition and a consistent
+    // snapshot across items.
+    return processImage.get(
+        tx -> {
+          var values = new ArrayList<DataValue>(reads.size());
+          for (ValueRead read : reads) {
+            try {
+              values.add(new DataValue(readValueAttribute(tx, read.address(), read.indexRange())));
+            } catch (UaException e) {
+              values.add(new DataValue(e.getStatusCode()));
+            } catch (RuntimeException e) {
+              logger.error("Error reading value: address={}", read.address(), e);
+              values.add(new DataValue(StatusCodes.Bad_InternalError));
+            }
+          }
+          return values;
+        });
   }
 
   static Variant readValueAttribute(
       ProcessImage processImage, ModbusAddress address, String indexRange) throws UaException {
+
+    try {
+      return processImage.get(
+          tx -> {
+            try {
+              return readValueAttribute(tx, address, indexRange);
+            } catch (UaException e) {
+              throw new UaRuntimeException(e);
+            }
+          });
+    } catch (UaRuntimeException e) {
+      throw UaException.extract(e).orElse(new UaException(StatusCodes.Bad_InternalError, e));
+    }
+  }
+
+  private static Variant readValueAttribute(
+      Transaction tx, ModbusAddress address, String indexRange) throws UaException {
 
     NumericRange range = null;
     if (indexRange != null && !indexRange.isEmpty()) {
@@ -240,21 +277,33 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
           && !(address.getDataType() instanceof ModbusDataType.String)) {
         throw new UaException(StatusCodes.Bad_IndexRangeNoData);
       }
+      if (address instanceof ArrayAddress array) {
+        // Read only the slices selected by the range's first dimension instead of decoding
+        // the whole array; the remaining dimensions are applied to the sub-array below.
+        NumericRange.Bounds bounds = range.getBounds()[0];
+        if (bounds.getHigh() >= array.getDimensions()[0]) {
+          throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+        }
+        address = subArrayAddress(array, bounds);
+        range = rebaseFirstDimension(indexRange, bounds);
+      }
     }
 
-    Variant fullValue =
-        switch (address.getArea()) {
-          case COILS -> readBooleanValue(processImage, address, false);
-          case DISCRETE_INPUTS -> readBooleanValue(processImage, address, true);
-          case HOLDING_REGISTERS -> {
-            byte[] bs = processImage.get(tx -> readHoldingRegisters(tx, address));
+    ModbusAddress readAddress = address;
 
-            yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
+    Variant fullValue =
+        switch (readAddress.getArea()) {
+          case COILS -> readBooleanValue(tx, readAddress, false);
+          case DISCRETE_INPUTS -> readBooleanValue(tx, readAddress, true);
+          case HOLDING_REGISTERS -> {
+            byte[] bs = readHoldingRegisters(tx, readAddress);
+
+            yield new Variant(ModbusByteUtil.getValueForBytes(bs, readAddress));
           }
           case INPUT_REGISTERS -> {
-            byte[] bs = processImage.get(tx -> readInputRegisters(tx, address));
+            byte[] bs = readInputRegisters(tx, readAddress);
 
-            yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
+            yield new Variant(ModbusByteUtil.getValueForBytes(bs, readAddress));
           }
         };
 
@@ -264,25 +313,67 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     return fullValue;
   }
 
+  /** Narrow {@code array} to the slices of its first dimension selected by {@code bounds}. */
+  private static ArrayAddress subArrayAddress(ArrayAddress array, NumericRange.Bounds bounds) {
+    int[] dimensions = array.getDimensions().clone();
+    dimensions[0] = bounds.getHigh() - bounds.getLow() + 1;
+
+    int offsetShift = bounds.getLow() * firstDimensionSliceSize(array) * entriesPerElement(array);
+
+    return new ArrayAddress(
+        array.getUnitId().orElse(null),
+        array.getArea(),
+        array.getOffset() + offsetShift,
+        array.getDataType(),
+        array.getDataTypeModifiers(),
+        dimensions);
+  }
+
+  /** Rewrite {@code indexRange} so its first dimension is relative to the sub-array read. */
+  private static NumericRange rebaseFirstDimension(String indexRange, NumericRange.Bounds bounds)
+      throws UaException {
+
+    String first =
+        bounds.getLow() == bounds.getHigh()
+            ? "0"
+            : "0:%d".formatted(bounds.getHigh() - bounds.getLow());
+    int comma = indexRange.indexOf(',');
+    return parseNumericRange(comma < 0 ? first : first + indexRange.substring(comma));
+  }
+
+  /** Number of elements in one slice of the array's first dimension. */
+  private static int firstDimensionSliceSize(ArrayAddress array) {
+    int[] dimensions = array.getDimensions();
+    int sliceSize = 1;
+    for (int i = 1; i < dimensions.length; i++) {
+      sliceSize *= dimensions[i];
+    }
+    return sliceSize;
+  }
+
+  /** Coils and discrete inputs store one entry per element; register areas store registers. */
+  private static int entriesPerElement(ModbusAddress address) {
+    return switch (address.getArea()) {
+      case COILS, DISCRETE_INPUTS -> 1;
+      case HOLDING_REGISTERS, INPUT_REGISTERS -> address.getDataType().getRegisterCount();
+    };
+  }
+
   private static Variant readBooleanValue(
-      ProcessImage processImage, ModbusAddress address, boolean discreteInputs) {
+      Transaction tx, ModbusAddress address, boolean discreteInputs) {
 
     if (address instanceof ArrayAddress array) {
       boolean[] values =
-          processImage.get(
-              tx ->
-                  discreteInputs
-                      ? tx.readDiscreteInputs(map -> readBooleans(map, array))
-                      : tx.readCoils(map -> readBooleans(map, array)));
+          discreteInputs
+              ? tx.readDiscreteInputs(map -> readBooleans(map, array))
+              : tx.readCoils(map -> readBooleans(map, array));
 
       return new Variant(shapeBooleanArray(values, array));
     } else if (address instanceof ScalarAddress scalar) {
       boolean value =
-          processImage.get(
-              tx ->
-                  discreteInputs
-                      ? tx.readDiscreteInputs(map -> map.getOrDefault(scalar.getOffset(), false))
-                      : tx.readCoils(map -> map.getOrDefault(scalar.getOffset(), false)));
+          discreteInputs
+              ? tx.readDiscreteInputs(map -> map.getOrDefault(scalar.getOffset(), false))
+              : tx.readCoils(map -> map.getOrDefault(scalar.getOffset(), false));
 
       return new Variant(value);
     } else {
@@ -472,21 +563,30 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   }
 
   static List<StatusCode> writeValueAttributes(ProcessImage processImage, List<ValueWrite> writes) {
-
-    var statuses = new ArrayList<StatusCode>(writes.size());
-    for (ValueWrite write : writes) {
-      try {
-        writeValueAttribute(processImage, write.address(), write.variant(), write.indexRange());
-        statuses.add(StatusCode.GOOD);
-      } catch (UaException e) {
-        statuses.add(e.getStatusCode());
-      } catch (RuntimeException e) {
-        statuses.add(
-            UaException.extract(e)
-                .map(UaException::getStatusCode)
-                .orElse(new StatusCode(StatusCodes.Bad_InternalError)));
-      }
+    if (writes.isEmpty()) {
+      return List.of();
     }
+
+    // One transaction for the whole batch: a single lock acquisition instead of one per item.
+    var statuses = new ArrayList<StatusCode>(writes.size());
+    processImage.with(
+        tx -> {
+          for (ValueWrite write : writes) {
+            try {
+              writeValueAttribute(tx, write.address(), write.variant(), write.indexRange());
+              statuses.add(StatusCode.GOOD);
+            } catch (Exception e) {
+              statuses.add(
+                  UaException.extract(e)
+                      .map(UaException::getStatusCode)
+                      .orElseGet(
+                          () -> {
+                            logger.error("Error writing value: address={}", write.address(), e);
+                            return new StatusCode(StatusCodes.Bad_InternalError);
+                          }));
+            }
+          }
+        });
     return statuses;
   }
 
@@ -497,7 +597,12 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     try {
       processImage.with(tx -> writeValueAttribute(tx, address, variant, indexRange));
     } catch (Exception e) {
-      throw UaException.extract(e).orElse(new UaException(StatusCodes.Bad_InternalError));
+      throw UaException.extract(e)
+          .orElseGet(
+              () -> {
+                logger.error("Error writing value: address={}", address, e);
+                return new UaException(StatusCodes.Bad_InternalError, e);
+              });
     }
   }
 
@@ -527,14 +632,13 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
    * range is present.
    */
   private static Variant resolveWriteValue(
-      ModbusAddress address, Variant variant, String indexRange, CurrentValueReader currentValue)
+      ModbusAddress address, Variant variant, NumericRange range, CurrentValueReader currentValue)
       throws UaException {
 
-    if (indexRange == null || indexRange.isEmpty()) {
+    if (range == null) {
       return variant;
     }
 
-    NumericRange range = parseNumericRange(indexRange);
     // Arrays support element ranges; scalar String values support sub-string ranges.
     boolean rangeSupported =
         address instanceof ArrayAddress || address.getDataType() instanceof ModbusDataType.String;
@@ -554,20 +658,37 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       Map<Integer, Boolean> booleanMap, ModbusAddress address, Variant variant, String indexRange) {
 
     try {
+      NumericRange range =
+          indexRange == null || indexRange.isEmpty() ? null : parseNumericRange(indexRange);
+
       Variant fullVariant =
           resolveWriteValue(
               address,
               variant,
-              indexRange,
+              range,
               addr -> {
                 // Only ArrayAddress reaches here: scalar coils are Bool, so
                 // resolveWriteValue rejects their index-range writes.
                 ArrayAddress array = (ArrayAddress) addr;
-                return shapeBooleanArray(readBooleans(booleanMap, array), array);
+                // Copy the extent out of the transaction-scoped map first: its element
+                // lookups are O(map size).
+                Map<Integer, Boolean> current =
+                    copyRange(booleanMap, array.getOffset(), array.getElementCount());
+                return shapeBooleanArray(readBooleans(current, array), array);
               });
 
       if (address instanceof ArrayAddress array) {
-        writeBooleanArray(booleanMap, fullVariant, array);
+        int firstElement = 0;
+        int elementLimit = array.getElementCount();
+        if (range != null) {
+          // A ranged write must leave elements outside the selected first-dimension
+          // slices untouched.
+          int sliceSize = firstDimensionSliceSize(array);
+          NumericRange.Bounds bounds = range.getBounds()[0];
+          firstElement = bounds.getLow() * sliceSize;
+          elementLimit = Math.min((bounds.getHigh() + 1) * sliceSize, elementLimit);
+        }
+        writeBooleanArray(booleanMap, fullVariant, array, firstElement, elementLimit);
       } else if (address instanceof ScalarAddress scalar) {
         if (fullVariant.getValue() instanceof Boolean b) {
           booleanMap.put(scalar.getOffset(), b);
@@ -586,24 +707,109 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       Map<Integer, byte[]> registerMap, ModbusAddress address, Variant variant, String indexRange) {
 
     try {
+      NumericRange range =
+          indexRange == null || indexRange.isEmpty() ? null : parseNumericRange(indexRange);
+
       Variant fullVariant =
           resolveWriteValue(
               address,
               variant,
-              indexRange,
-              addr -> ModbusByteUtil.getValueForBytes(readRegisters(registerMap, addr), addr));
+              range,
+              addr -> {
+                // Copy the extent out of the transaction-scoped map first: its element
+                // lookups are O(map size).
+                Map<Integer, byte[]> current =
+                    copyRange(registerMap, addr.getOffset(), registerExtent(addr));
+                return ModbusByteUtil.getValueForBytes(readRegisters(current, addr), addr);
+              });
+
+      if (range != null
+          && address.getDataType() instanceof ModbusDataType.String
+          && isSubStringRange(address, range)) {
+        validateMergedStringByteCapacity(fullVariant.getValue(), address, range);
+      }
 
       if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
         writeBitToRegister(address, fullVariant, dataType, registerMap);
       } else {
         byte[] registers = getRegisterWriteBytes(address, fullVariant);
-        for (int i = 0; i < registers.length / 2; i++) {
+        int firstRegister = 0;
+        int registerLimit = registers.length / 2;
+        if (range != null && address instanceof ArrayAddress array) {
+          // A ranged write must leave registers outside the selected first-dimension
+          // slices untouched: the merge round-trip is lossy for String and Bool elements.
+          int registersPerSlice =
+              firstDimensionSliceSize(array) * array.getDataType().getRegisterCount();
+          NumericRange.Bounds bounds = range.getBounds()[0];
+          firstRegister = bounds.getLow() * registersPerSlice;
+          registerLimit = Math.min((bounds.getHigh() + 1) * registersPerSlice, registerLimit);
+        }
+        for (int i = firstRegister; i < registerLimit; i++) {
           byte[] value = new byte[] {registers[i * 2], registers[i * 2 + 1]};
           registerMap.put(address.getOffset() + i, value);
         }
       }
     } catch (UaException e) {
       throw new UaRuntimeException(e);
+    }
+  }
+
+  /** Total number of registers spanned by {@code address}. */
+  private static int registerExtent(ModbusAddress address) {
+    int elementCount =
+        address instanceof ArrayAddress arrayAddress ? arrayAddress.getElementCount() : 1;
+    return elementCount * address.getDataType().getRegisterCount();
+  }
+
+  /** Copy the entries in {@code [offset, offset + count)} out of {@code map}. */
+  private static <V> Map<Integer, V> copyRange(Map<Integer, V> map, int offset, int count) {
+    var copy = new HashMap<Integer, V>();
+    for (Map.Entry<Integer, V> entry : map.entrySet()) {
+      int key = entry.getKey();
+      if (key >= offset && key - offset < count) {
+        copy.put(key, entry.getValue());
+      }
+    }
+    return copy;
+  }
+
+  /** An extra final range dimension selects characters within a String element. */
+  private static boolean isSubStringRange(ModbusAddress address, NumericRange range) {
+    int rank = address instanceof ArrayAddress array ? array.getDimensions().length : 0;
+    return range.getBounds().length == rank + 1;
+  }
+
+  /**
+   * Reject sub-string merges whose UTF-8 encoding no longer fits the element's registers;
+   * silently truncating would destroy characters outside the selected range.
+   */
+  private static void validateMergedStringByteCapacity(
+      Object merged, ModbusAddress address, NumericRange range) throws UaException {
+
+    int capacity = address.getDataType().getRegisterCount() * 2;
+
+    Object elements = merged instanceof Matrix matrix ? matrix.getElements() : merged;
+    if (elements instanceof String string) {
+      if (string.getBytes(StandardCharsets.UTF_8).length > capacity) {
+        throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
+      }
+      return;
+    }
+
+    int first = 0;
+    int limit = Array.getLength(elements);
+    if (address instanceof ArrayAddress array) {
+      // Only elements in the selected first-dimension slices are written back.
+      int sliceSize = firstDimensionSliceSize(array);
+      NumericRange.Bounds bounds = range.getBounds()[0];
+      first = bounds.getLow() * sliceSize;
+      limit = Math.min((bounds.getHigh() + 1) * sliceSize, limit);
+    }
+    for (int i = first; i < limit; i++) {
+      if (Array.get(elements, i) instanceof String string
+          && string.getBytes(StandardCharsets.UTF_8).length > capacity) {
+        throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
+      }
     }
   }
 
@@ -621,34 +827,46 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       currentValue = matrix.nestedArrayValue();
     }
     if (updateValue instanceof Matrix matrix) {
+      if (matrix.isNull()) {
+        throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
+      }
       updateValue = matrix.nestedArrayValue();
     }
 
     validateRangeDimensionCount(currentValue, range);
+
+    int[] currentDimensions = ArrayUtil.getDimensions(currentValue);
+    NumericRange.Bounds[] bounds = range.getBounds();
+    // Bounds past the end of the current value select no data; check before the shape
+    // comparisons so the client sees Bad_IndexRangeNoData rather than a shape mismatch.
+    for (int i = 0; i < currentDimensions.length; i++) {
+      if (bounds[i].getHigh() >= currentDimensions[i]) {
+        throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+      }
+    }
 
     if (ArrayUtil.getBoxedType(currentValue) != ArrayUtil.getBoxedType(updateValue)) {
       throw new UaException(StatusCodes.Bad_TypeMismatch);
     }
 
     int[] updateDimensions = ArrayUtil.getDimensions(updateValue);
-    NumericRange.Bounds[] bounds = range.getBounds();
     // For String values an extra final range dimension selects characters within an
     // element, so the update value has one fewer dimension than the range has bounds.
     boolean subStringRange =
-        hasStringLeaf(currentValue)
-            && bounds.length == ArrayUtil.getDimensions(currentValue).length + 1;
-    if (!subStringRange && updateDimensions.length != bounds.length) {
+        hasStringLeaf(currentValue) && bounds.length == currentDimensions.length + 1;
+    int expectedUpdateRank = subStringRange ? bounds.length - 1 : bounds.length;
+    if (updateDimensions.length != expectedUpdateRank) {
       throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
     }
     for (int i = 0; i < updateDimensions.length; i++) {
-      int expectedLength = bounds[i].getHigh() - bounds[i].getLow() + 1;
+      long expectedLength = (long) bounds[i].getHigh() - bounds[i].getLow() + 1;
       if (updateDimensions[i] != expectedLength) {
         throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
       }
     }
     if (subStringRange) {
       NumericRange.Bounds stringBounds = bounds[bounds.length - 1];
-      int expectedLength = stringBounds.getHigh() - stringBounds.getLow() + 1;
+      long expectedLength = (long) stringBounds.getHigh() - stringBounds.getLow() + 1;
       validateStringLengths(updateValue, expectedLength);
     }
 
@@ -683,7 +901,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
   }
 
-  private static void validateStringLengths(Object value, int expectedLength) throws UaException {
+  private static void validateStringLengths(Object value, long expectedLength) throws UaException {
     if (value == null) {
       throw new UaException(StatusCodes.Bad_IndexRangeDataMismatch);
     }
@@ -714,6 +932,17 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   static void writeBooleanArray(
       Map<Integer, Boolean> booleanMap, Variant variant, ArrayAddress array) throws UaException {
 
+    writeBooleanArray(booleanMap, variant, array, 0, array.getElementCount());
+  }
+
+  private static void writeBooleanArray(
+      Map<Integer, Boolean> booleanMap,
+      Variant variant,
+      ArrayAddress array,
+      int firstElement,
+      int elementLimit)
+      throws UaException {
+
     Object value = variant.getValue();
 
     if (array.getDimensions().length > 1) {
@@ -725,13 +954,38 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       value = matrix.getElements();
     }
 
-    if (!(value instanceof Boolean[] booleans) || booleans.length != array.getElementCount()) {
-      throw new UaException(StatusCodes.Bad_TypeMismatch);
-    }
+    Boolean[] booleans = boxedBooleanArray(value, array.getElementCount());
 
-    for (int i = 0; i < booleans.length; i++) {
+    for (int i = firstElement; i < elementLimit; i++) {
       booleanMap.put(array.getOffset() + i, booleans[i]);
     }
+  }
+
+  /**
+   * Accepts boxed or primitive boolean arrays ({@link Matrix} supports both backings) and rejects
+   * null elements, which would poison the process image and NPE on later reads.
+   */
+  private static Boolean[] boxedBooleanArray(Object value, int expectedLength) throws UaException {
+    if (value instanceof boolean[] primitive) {
+      if (primitive.length != expectedLength) {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+      Boolean[] boxed = new Boolean[primitive.length];
+      for (int i = 0; i < primitive.length; i++) {
+        boxed[i] = primitive[i];
+      }
+      return boxed;
+    }
+
+    if (!(value instanceof Boolean[] boxed) || boxed.length != expectedLength) {
+      throw new UaException(StatusCodes.Bad_TypeMismatch);
+    }
+    for (Boolean b : boxed) {
+      if (b == null) {
+        throw new UaException(StatusCodes.Bad_TypeMismatch);
+      }
+    }
+    return boxed;
   }
 
   private static void writeBitToRegister(
