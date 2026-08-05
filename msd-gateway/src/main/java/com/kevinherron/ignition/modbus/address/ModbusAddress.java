@@ -66,6 +66,19 @@ public abstract sealed class ModbusAddress {
     public int[] getDimensions() {
       return dimensions;
     }
+
+    /**
+     * Get the total number of elements in the array: the product of all dimensions.
+     *
+     * @return the total number of elements in the array.
+     */
+    public int getElementCount() {
+      int elementCount = 1;
+      for (int dimension : dimensions) {
+        elementCount *= dimension;
+      }
+      return elementCount;
+    }
   }
 
   public static final class ScalarAddress extends ModbusAddress {

@@ -1,9 +1,5 @@
 package com.kevinherron.ignition.modbus;
 
-import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
-import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ulong;
-import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort;
-
 import com.digitalpetri.modbus.server.ProcessImage;
 import com.digitalpetri.modbus.server.ProcessImage.Modification.CoilModification;
 import com.digitalpetri.modbus.server.ProcessImage.Modification.DiscreteInputModification;
@@ -12,10 +8,8 @@ import com.digitalpetri.modbus.server.ProcessImage.Modification.InputRegisterMod
 import com.digitalpetri.modbus.server.ProcessImage.Transaction;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
-import com.kevinherron.ignition.modbus.address.ModbusAddress.ModbusArea;
+import com.kevinherron.ignition.modbus.address.ModbusAddress.ArrayAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
-import com.kevinherron.ignition.modbus.address.ModbusDataType;
-import com.kevinherron.ignition.modbus.util.ModbusByteUtil;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -25,7 +19,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.core.Reference.Direction;
@@ -42,6 +35,7 @@ import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.NodeIds;
 import org.eclipse.milo.opcua.stack.core.StatusCodes;
 import org.eclipse.milo.opcua.stack.core.UaException;
+import org.eclipse.milo.opcua.stack.core.UaRuntimeException;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
@@ -58,15 +52,28 @@ import org.eclipse.milo.opcua.stack.core.util.ExecutionQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Presents a {@link ModbusServerDevice} process image as an OPC UA address-space fragment.
+ *
+ * <p>The fragment resolves Modbus address strings as variable nodes, exposes their value and
+ * metadata attributes, and supplies monitored values through the OPC UA subscription model. Its
+ * {@link Lifecycle} must be started before use and shut down with the owning device; startup also
+ * restores persisted process-image data when persistence is enabled.
+ */
 public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
-  private final Logger logger = LoggerFactory.getLogger(getClass());
+  private static final Logger logger = LoggerFactory.getLogger(ModbusAddressSpace.class);
 
   private final AddressSpaceFilter filter;
   private final SubscriptionModel subscriptionModel;
 
   private final ModbusServerDevice device;
 
+  /**
+   * Creates an unstarted address space for a Modbus server device.
+   *
+   * @param device the device whose process image and OPC UA context back this address space.
+   */
   public ModbusAddressSpace(ModbusServerDevice device) {
     this.device = device;
 
@@ -156,15 +163,10 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       List<ReadValueId> readValueIds) {
 
     List<PendingRead> pendingReads = readValueIds.stream().map(PendingRead::new).toList();
+    var pendingValueReads = new ArrayList<PendingValueRead>();
 
     for (PendingRead pending : pendingReads) {
       ReadValueId readValueId = pending.readValueId;
-
-      if (readValueId.getIndexRange() != null && !readValueId.getIndexRange().isEmpty()) {
-        // TODO support index ranges on array values
-        pending.value = new DataValue(StatusCodes.Bad_WriteNotSupported);
-        break;
-      }
 
       String id = readValueId.getNodeId().getIdentifier().toString();
       String name = "[%s]".formatted(device.deviceContext.getName());
@@ -177,15 +179,22 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         if (attributeId == null) {
           pending.value = new DataValue(StatusCodes.Bad_AttributeIdInvalid);
         } else if (attributeId == AttributeId.Value) {
-          try {
-            Variant v = readValueAttribute(address);
-            pending.value = new DataValue(v);
-          } catch (UaException e) {
-            pending.value = new DataValue(e.getStatusCode());
-          }
+          pendingValueReads.add(
+              new PendingValueRead(pending, new ValueRead(address, readValueId.getIndexRange())));
         } else {
           try {
             Variant v = readNonValueAttribute(readValueId.getNodeId(), attributeId, address);
+            String indexRange = readValueId.getIndexRange();
+            if (indexRange != null && !indexRange.isEmpty()) {
+              // OPC UA Part 4: an IndexRange applies to any attribute; non-array attributes
+              // must return Bad_IndexRangeNoData rather than the full value.
+              var range = ModbusValueAccess.parseNumericRange(indexRange);
+              Object value = v.getValue();
+              if (value == null) {
+                throw new UaException(StatusCodes.Bad_IndexRangeNoData);
+              }
+              v = new Variant(ModbusValueAccess.readValueAtRange(value, range));
+            }
             pending.value = new DataValue(v);
           } catch (UaException e) {
             pending.value = new DataValue(e.getStatusCode());
@@ -197,63 +206,58 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
     }
 
+    List<DataValue> values =
+        readValueAttributes(
+            device.processImage, pendingValueReads.stream().map(PendingValueRead::read).toList());
+    for (int i = 0; i < pendingValueReads.size(); i++) {
+      pendingValueReads.get(i).pending().value = values.get(i);
+    }
+
     return pendingReads.stream().map(p -> p.value).toList();
   }
 
-  private Variant readValueAttribute(ModbusAddress address) throws UaException {
-    ModbusArea area = address.getArea();
-
-    return switch (area) {
-      case COILS -> {
-        boolean value = device.processImage.get(tx -> readCoil(tx, address));
-
-        yield new Variant(value);
-      }
-      case DISCRETE_INPUTS -> {
-        boolean value = device.processImage.get(tx -> readDiscreteInput(tx, address));
-
-        yield new Variant(value);
-      }
-      case HOLDING_REGISTERS -> {
-        byte[] bs = device.processImage.get(tx -> readHoldingRegisters(tx, address));
-
-        yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
-      }
-      case INPUT_REGISTERS -> {
-        byte[] bs = device.processImage.get(tx -> readInputRegisters(tx, address));
-
-        yield new Variant(ModbusByteUtil.getValueForBytes(bs, address));
-      }
-    };
-  }
-
-  private static boolean readCoil(Transaction tx, ModbusAddress address) {
-    return tx.readCoils(coilMap -> coilMap.getOrDefault(address.getOffset(), false));
-  }
-
-  private static boolean readDiscreteInput(Transaction tx, ModbusAddress address) {
-    return tx.readDiscreteInputs(
-        discreteInputMap -> discreteInputMap.getOrDefault(address.getOffset(), false));
-  }
-
-  private static byte[] readHoldingRegisters(Transaction tx, ModbusAddress address) {
-    return tx.readHoldingRegisters(registers -> readRegisters(registers, address));
-  }
-
-  private static byte[] readInputRegisters(Transaction tx, ModbusAddress address) {
-    return tx.readInputRegisters(registers -> readRegisters(registers, address));
-  }
-
-  private static byte[] readRegisters(Map<Integer, byte[]> registers, ModbusAddress address) {
-    var value = new byte[address.getDataType().getRegisterCount() * 2];
-
-    for (int i = 0; i < value.length / 2; i++) {
-      byte[] bs = registers.getOrDefault(address.getOffset() + i, new byte[2]);
-      value[i * 2] = bs[0];
-      value[i * 2 + 1] = bs[1];
+  static List<DataValue> readValueAttributes(ProcessImage processImage, List<ValueRead> reads) {
+    if (reads.isEmpty()) {
+      return List.of();
     }
 
-    return value;
+    // One transaction for the whole batch: a single lock acquisition and a consistent
+    // snapshot across items.
+    return processImage.get(
+        tx -> {
+          var values = new ArrayList<DataValue>(reads.size());
+          for (ValueRead read : reads) {
+            try {
+              values.add(
+                  new DataValue(
+                      ModbusValueAccess.readValueAttribute(
+                          tx, read.address(), read.indexRange())));
+            } catch (UaException e) {
+              values.add(new DataValue(e.getStatusCode()));
+            } catch (RuntimeException e) {
+              logger.error("Error reading value: address={}", read.address(), e);
+              values.add(new DataValue(StatusCodes.Bad_InternalError));
+            }
+          }
+          return values;
+        });
+  }
+
+  static Variant readValueAttribute(
+      ProcessImage processImage, ModbusAddress address, String indexRange) throws UaException {
+
+    try {
+      return processImage.get(
+          tx -> {
+            try {
+              return ModbusValueAccess.readValueAttribute(tx, address, indexRange);
+            } catch (UaException e) {
+              throw new UaRuntimeException(e);
+            }
+          });
+    } catch (UaRuntimeException e) {
+      throw UaException.extract(e).orElse(new UaException(StatusCodes.Bad_InternalError, e));
+    }
   }
 
   private Variant readNonValueAttribute(
@@ -274,25 +278,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
             yield LocalizedText.english(addr);
           }
           case WriteMask, UserWriteMask -> UInteger.valueOf(0);
-          case DataType -> address.getDataType().getOpcUaDataType().getNodeId();
-          case ValueRank -> {
-            if (address instanceof ModbusAddress.ArrayAddress a) {
-              yield a.getDimensions().length;
-            } else {
-              yield ValueRank.Scalar.getValue();
-            }
-          }
-          case ArrayDimensions -> {
-            if (address instanceof ModbusAddress.ArrayAddress a) {
-              yield Arrays.stream(a.getDimensions()).mapToObj(Unsigned::uint).toArray();
-            } else {
-              yield null;
-            }
-          }
-
-          // All areas are Read/Write from the OPC UA side, otherwise nothing would be able to
-          // update IR and DI values!
-          case AccessLevel, UserAccessLevel -> AccessLevel.toValue(AccessLevel.READ_WRITE);
+          case DataType, ValueRank, ArrayDimensions, AccessLevel, UserAccessLevel ->
+              readAddressAttribute(attributeId, address).getValue();
 
           case Value ->
               throw new UaException(StatusCodes.Bad_InternalError, "attributeId: " + attributeId);
@@ -303,6 +290,41 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         };
 
     return new Variant(o);
+  }
+
+  static Variant readAddressAttribute(AttributeId attributeId, ModbusAddress address)
+      throws UaException {
+
+    Object value =
+        switch (attributeId) {
+          case DataType -> address.getDataType().getOpcUaDataType().getNodeId();
+          case ValueRank -> {
+            if (address instanceof ArrayAddress array) {
+              yield array.getDimensions().length;
+            } else {
+              yield ValueRank.Scalar.getValue();
+            }
+          }
+          case ArrayDimensions -> {
+            if (address instanceof ArrayAddress array) {
+              yield Arrays.stream(array.getDimensions())
+                  .mapToObj(Unsigned::uint)
+                  .toArray(UInteger[]::new);
+            } else {
+              yield null;
+            }
+          }
+
+          // All areas are Read/Write from the OPC UA side, otherwise nothing would be able to
+          // update IR and DI values!
+          case AccessLevel, UserAccessLevel -> AccessLevel.toValue(AccessLevel.READ_WRITE);
+
+          default ->
+              throw new UaException(
+                  StatusCodes.Bad_AttributeIdInvalid, "attributeId: " + attributeId);
+        };
+
+    return new Variant(value);
   }
 
   // endregion
@@ -318,12 +340,6 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     for (PendingWrite pending : pendingWrites) {
       WriteValue writeValue = pending.writeValue;
 
-      if (writeValue.getIndexRange() != null && !writeValue.getIndexRange().isEmpty()) {
-        // TODO support index ranges on array values
-        pending.statusCode = new StatusCode(StatusCodes.Bad_WriteNotSupported);
-        break;
-      }
-
       AttributeId attributeId = AttributeId.from(writeValue.getAttributeId()).orElse(null);
 
       if (attributeId == null) {
@@ -334,7 +350,11 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         String addr = id.substring(id.indexOf(name) + name.length());
         try {
           ModbusAddress address = ModbusAddressParser.parse(addr);
-          pendingValueWrites.add(new PendingValueWrite(writeValue, address));
+          pendingValueWrites.add(
+              new PendingValueWrite(
+                  pending,
+                  new ValueWrite(
+                      address, writeValue.getValue().getValue(), writeValue.getIndexRange())));
         } catch (Exception e) {
           pending.statusCode = new StatusCode(StatusCodes.Bad_ConfigurationError);
         }
@@ -343,188 +363,60 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       }
     }
 
-    for (PendingValueWrite pvw : pendingValueWrites) {
-      try {
-        writeValueAttribute(pvw.address, pvw.writeValue.getValue().getValue());
-        pvw.statusCode = StatusCode.GOOD;
-      } catch (UaException e) {
-        pvw.statusCode = e.getStatusCode();
-      } catch (RuntimeException e) {
-        if (e.getCause() instanceof UaException uax) {
-          pvw.statusCode = uax.getStatusCode();
-        } else {
-          pvw.statusCode = new StatusCode(StatusCodes.Bad_InternalError);
-        }
-      }
+    List<StatusCode> statuses =
+        writeValueAttributes(
+            device.processImage,
+            pendingValueWrites.stream().map(PendingValueWrite::write).toList());
+    for (int i = 0; i < pendingValueWrites.size(); i++) {
+      pendingValueWrites.get(i).pending().statusCode = statuses.get(i);
     }
 
     return pendingWrites.stream().map(p -> p.statusCode).toList();
   }
 
-  private void writeValueAttribute(ModbusAddress address, Variant variant) throws UaException {
-    switch (address.getArea()) {
-      case COILS -> {
-        if (variant.getValue() instanceof Boolean b) {
-          device.processImage.with(
-              tx -> tx.writeCoils(coilMap -> coilMap.put(address.getOffset(), b)));
-        } else {
-          throw new UaException(StatusCodes.Bad_TypeMismatch);
-        }
-      }
-      case DISCRETE_INPUTS -> {
-        if (variant.getValue() instanceof Boolean b) {
-          device.processImage.with(
-              tx ->
-                  tx.writeDiscreteInputs(
-                      discreteInputMap -> discreteInputMap.put(address.getOffset(), b)));
-        } else {
-          throw new UaException(StatusCodes.Bad_TypeMismatch);
-        }
-      }
-      case HOLDING_REGISTERS -> {
-        checkDataType(address.getDataType(), variant);
-
-        if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          device.processImage.with(
-              tx ->
-                  tx.writeHoldingRegisters(
-                      holdingRegisterMap -> {
-                        try {
-                          writeBitToRegister(address, variant, dataType, holdingRegisterMap);
-                        } catch (UaException e) {
-                          throw new RuntimeException(e);
-                        }
-                      }));
-        } else {
-          byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
-
-          device.processImage.with(
-              tx ->
-                  tx.writeHoldingRegisters(
-                      holdingRegisterMap -> {
-                        for (int i = 0; i < registers.length / 2; i++) {
-                          byte[] value = new byte[] {registers[i * 2], registers[i * 2 + 1]};
-                          holdingRegisterMap.put(address.getOffset() + i, value);
-                        }
-                      }));
-        }
-      }
-      case INPUT_REGISTERS -> {
-        checkDataType(address.getDataType(), variant);
-
-        if (address.getDataType() instanceof ModbusDataType.Bit dataType) {
-          device.processImage.with(
-              tx ->
-                  tx.writeInputRegisters(
-                      inputRegisterMap -> {
-                        try {
-                          writeBitToRegister(address, variant, dataType, inputRegisterMap);
-                        } catch (UaException e) {
-                          throw new RuntimeException(e);
-                        }
-                      }));
-        } else {
-          byte[] registers = ModbusByteUtil.getBytesForValue(variant.getValue(), address);
-
-          device.processImage.with(
-              tx ->
-                  tx.writeInputRegisters(
-                      inputRegisterMap -> {
-                        for (int i = 0; i < registers.length / 2; i++) {
-                          byte[] value = new byte[] {registers[i * 2], registers[i * 2 + 1]};
-                          inputRegisterMap.put(address.getOffset() + i, value);
-                        }
-                      }));
-        }
-      }
-      default -> throw new IllegalArgumentException("area: " + address.getArea());
+  static List<StatusCode> writeValueAttributes(ProcessImage processImage, List<ValueWrite> writes) {
+    if (writes.isEmpty()) {
+      return List.of();
     }
+
+    // One transaction for the whole batch: a single lock acquisition instead of one per item.
+    var statuses = new ArrayList<StatusCode>(writes.size());
+    processImage.with(
+        tx -> {
+          for (ValueWrite write : writes) {
+            try {
+              ModbusValueAccess.writeValueAttribute(
+                  tx, write.address(), write.variant(), write.indexRange());
+              statuses.add(StatusCode.GOOD);
+            } catch (Exception e) {
+              statuses.add(
+                  UaException.extract(e)
+                      .map(UaException::getStatusCode)
+                      .orElseGet(
+                          () -> {
+                            logger.error("Error writing value: address={}", write.address(), e);
+                            return new StatusCode(StatusCodes.Bad_InternalError);
+                          }));
+            }
+          }
+        });
+    return statuses;
   }
 
-  /**
-   * Check that a value is of the correct type for the given ModbusDataType.
-   *
-   * @param dataType the {@link ModbusDataType}.
-   * @param variant the {@link Variant} to check.
-   * @throws UaException if the value is {@code null}, or not of the correct type.
-   */
-  private static void checkDataType(ModbusDataType dataType, Variant variant) throws UaException {
-    Object value = variant.getValue();
-    if (value == null) {
-      throw new UaException(StatusCodes.Bad_TypeMismatch);
-    }
-
-    Class<?> actualType = variant.getValue().getClass();
-    Class<?> expectedType = dataType.getOpcUaDataType().getBackingClass();
-
-    if (!expectedType.isAssignableFrom(actualType)) {
-      throw new UaException(StatusCodes.Bad_TypeMismatch);
-    }
-  }
-
-  private static void writeBitToRegister(
-      ModbusAddress address,
-      Variant variant,
-      ModbusDataType.Bit dataType,
-      Map<Integer, byte[]> registerMap)
+  static void writeValueAttribute(
+      ProcessImage processImage, ModbusAddress address, Variant variant, String indexRange)
       throws UaException {
 
-    int bitIndex = dataType.bit();
-    ModbusDataType underlyingType = dataType.underlyingType();
-
-    var bytes = new byte[underlyingType.getRegisterCount() * 2];
-
-    for (int i = 0; i < bytes.length / 2; i++) {
-      byte[] value = registerMap.getOrDefault(address.getOffset() + i, new byte[2]);
-      bytes[i * 2] = value[0];
-      bytes[i * 2 + 1] = value[1];
-    }
-
-    Object underlyingValue =
-        ModbusByteUtil.getValueForBytes(bytes, underlyingType, address.getDataTypeModifiers());
-
-    if (underlyingValue instanceof Number n) {
-      long mask = 1L << bitIndex;
-      long v = n.longValue();
-      if (variant.getValue() instanceof Boolean b) {
-        if (b) {
-          v |= mask;
-        } else {
-          v &= ~mask;
-        }
-        byte[] newBytes =
-            ModbusByteUtil.getBytesForValue(
-                castToUnderlying(v, underlyingType),
-                underlyingType,
-                address.getDataTypeModifiers());
-
-        for (int i = 0; i < newBytes.length / 2; i++) {
-          byte[] value = new byte[] {newBytes[i * 2], newBytes[i * 2 + 1]};
-          registerMap.put(address.getOffset() + i, value);
-        }
-      } else {
-        throw new UaException(StatusCodes.Bad_TypeMismatch);
-      }
-    } else {
-      throw new UaException(StatusCodes.Bad_InternalError);
-    }
-  }
-
-  private static Number castToUnderlying(long value, ModbusDataType dataType) {
-    if (dataType instanceof ModbusDataType.Int16) {
-      return (short) value;
-    } else if (dataType instanceof ModbusDataType.Int32) {
-      return (int) value;
-    } else if (dataType instanceof ModbusDataType.Int64) {
-      return value;
-    } else if (dataType instanceof ModbusDataType.UInt16) {
-      return ushort((int) value);
-    } else if (dataType instanceof ModbusDataType.UInt32) {
-      return uint(value);
-    } else if (dataType instanceof ModbusDataType.UInt64) {
-      return ulong(value);
-    } else {
-      throw new IllegalArgumentException("value=" + value + ", dataType=" + dataType);
+    try {
+      processImage.with(
+          tx -> ModbusValueAccess.writeValueAttribute(tx, address, variant, indexRange));
+    } catch (Exception e) {
+      throw UaException.extract(e)
+          .orElseGet(
+              () -> {
+                logger.error("Error writing value: address={}", address, e);
+                return new UaException(StatusCodes.Bad_InternalError, e);
+              });
     }
   }
 
@@ -845,6 +737,12 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
   }
 
+  record ValueRead(ModbusAddress address, String indexRange) {}
+
+  record ValueWrite(ModbusAddress address, Variant variant, String indexRange) {}
+
+  private record PendingValueRead(PendingRead pending, ValueRead read) {}
+
   private static class PendingWrite {
 
     volatile StatusCode statusCode;
@@ -855,17 +753,9 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
     }
   }
 
-  private static class PendingValueWrite extends PendingWrite {
+  private record PendingValueWrite(PendingWrite pending, ValueWrite write) {}
 
-    final ModbusAddress address;
-
-    private PendingValueWrite(WriteValue writeValue, ModbusAddress address) {
-      super(writeValue);
-      this.address = address;
-    }
-  }
-
-  private class ModbusAddressFilter extends SimpleAddressSpaceFilter {
+  private static class ModbusAddressFilter extends SimpleAddressSpaceFilter {
 
     private final String deviceName;
 
@@ -889,12 +779,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       id = id.substring(deviceName.length() + 2);
 
       logger.trace("checking {}", id);
-      try {
-        ModbusAddressParser.parse(id);
-        return true;
-      } catch (Exception e) {
-        return false;
-      }
+      return ModbusAddressParser.isValidAddress(id);
     }
   }
 }
