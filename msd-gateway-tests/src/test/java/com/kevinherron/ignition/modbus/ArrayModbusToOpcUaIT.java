@@ -132,14 +132,20 @@ public class ArrayModbusToOpcUaIT {
 
   @AfterAll
   void tearDown() throws Exception {
-    if (opcUaClient != null) {
-      opcUaClient.disconnect();
-    }
-    if (modbusClient != null) {
-      modbusClient.disconnect();
-    }
-    if (ignitionContainer != null) {
-      ignitionContainer.stop();
+    try {
+      if (opcUaClient != null) {
+        opcUaClient.disconnect();
+      }
+    } finally {
+      try {
+        if (modbusClient != null) {
+          modbusClient.disconnect();
+        }
+      } finally {
+        if (ignitionContainer != null) {
+          ignitionContainer.stop();
+        }
+      }
     }
   }
 
