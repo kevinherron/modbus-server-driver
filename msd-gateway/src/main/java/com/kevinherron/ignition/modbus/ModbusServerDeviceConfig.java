@@ -4,26 +4,33 @@ import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.D
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.Description;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.FormCategory;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.FormField;
+import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.Hidden;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.Label;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.Required;
 import com.inductiveautomation.ignition.gateway.web.nav.FormFieldType;
 
 /**
- * Defines the connection, OPC UA browsing, process-image, and persistence settings for a Modbus
+ * Defines the versioned connection, OPC UA browsing, and process-image settings for a Modbus
  * server device.
  *
  * <p>The Ignition resource form uses the component annotations to build its schema. Decoders may
  * omit optional nested settings; the canonical constructor applies their documented defaults.
  */
 public record ModbusServerDeviceConfig(
+    @Hidden
+        @Description("The version of this settings document.")
+        @DefaultValue("2")
+        int configVersion,
     Connectivity connectivity,
     Browsing browsing,
-    ProcessImageSettings processImage,
-    Persistence persistence) {
+    ProcessImageSettings processImage) {
+
+  /** Current persisted settings format. */
+  public static final int CURRENT_CONFIG_VERSION = 2;
 
   /** Applies documented defaults to optional nested settings. */
   public ModbusServerDeviceConfig {
-    processImage = processImage == null ? new ProcessImageSettings(false) : processImage;
+    processImage = processImage == null ? new ProcessImageSettings(false, false) : processImage;
   }
 
   /** Identifies the local interface and TCP port used by the Modbus server. */
@@ -89,21 +96,18 @@ public record ModbusServerDeviceConfig(
     }
   }
 
-  /** Selects unified process-image state or independent state for each Modbus unit ID. */
+  /** Selects process-image routing and retention behavior. */
   public record ProcessImageSettings(
+      @FormCategory("PROCESS IMAGE")
+          @FormField(FormFieldType.CHECKBOX)
+          @Label("")
+          @Description("Whether to persist the process image data across restarts.")
+          @DefaultValue("false")
+          boolean persistData,
       @FormCategory("PROCESS IMAGE")
           @FormField(FormFieldType.CHECKBOX)
           @Label("")
           @Description("Whether to use a separate process image for each unit ID.")
           @DefaultValue("false")
           boolean separatePerUnitId) {}
-
-  /** Selects whether process-image values are retained across device lifecycles. */
-  public record Persistence(
-      @FormCategory("PERSISTENCE")
-          @FormField(FormFieldType.CHECKBOX)
-          @Label("")
-          @Description("Whether to persist the process image data across restarts.")
-          @DefaultValue("false")
-          boolean persistData) {}
 }

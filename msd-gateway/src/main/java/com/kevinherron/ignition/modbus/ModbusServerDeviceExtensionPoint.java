@@ -1,5 +1,6 @@
 package com.kevinherron.ignition.modbus;
 
+import com.inductiveautomation.ignition.gateway.config.JsonSettingsUpgrader;
 import com.inductiveautomation.ignition.gateway.config.ValidationErrors;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.SchemaUtil;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
@@ -35,6 +36,11 @@ public class ModbusServerDeviceExtensionPoint
       ModbusServerDeviceConfig deviceConfig) {
 
     return new ModbusServerDevice(deviceContext, deviceConfig);
+  }
+
+  @Override
+  public Optional<JsonSettingsUpgrader> getSettingsUpgrader() {
+    return Optional.of(ModbusServerDeviceConfigUpgrader.INSTANCE);
   }
 
   @Override

@@ -38,6 +38,8 @@ public class ModbusServerModuleHook extends AbstractDeviceModuleHook {
 
   @Override
   public List<IdbMigrationStrategy> getRecordMigrationStrategies() {
+    // Encode the retired persistent record as version 1 settings. The extension-point upgrader
+    // then gives database records, resource JSON, and backups one canonical migration path.
     @SuppressWarnings("deprecation")
     var strategy =
         ExtensionPointRecordMigrationStrategy.newBuilder("com.kevinherron.modbus-server-driver")

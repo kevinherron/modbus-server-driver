@@ -58,7 +58,7 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
     processImageManager =
         new ProcessImageManager(
             deviceConfig.processImage().separatePerUnitId(),
-            deviceConfig.persistence().persistData(),
+            deviceConfig.processImage().persistData(),
             deviceContext.getDeviceFolderPath(),
             OpcUa.SHARED_EXECUTOR);
 
