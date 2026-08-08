@@ -1,17 +1,71 @@
 # Modbus Server Driver
 
-A module for Ignition's OPC UA server that acts as a Modbus server, creating a bidirectional "
-scratchpad" where data can be exchanged between Modbus clients and Ignition or other OPC UA clients.
+A module for Ignition's OPC UA server that acts as a Modbus server, creating a bidirectional
+"scratchpad" where data can be exchanged between Modbus clients and Ignition or other OPC UA
+clients.
 
-The process image in the Modbus server is accessible from either sides:
+The Modbus process image is accessible through both interfaces:
 
-- from a Modbus TCP client/master
-- from an OPC UA client connected to Ignition's OPC UA server
+- Modbus TCP clients
+- OPC UA clients connected to Ignition's OPC UA server
 
 Modbus clients can read or write as expected using any of the standard Modbus function codes.
 
 OPC UA clients can additionally write to Discrete Input and Input Register areas, which are
 read-only from Modbus clients.
+
+## Connection Security
+
+The per-device `security.allowedIpAddresses` setting, labeled **Allowed IP Addresses** in the
+Gateway, restricts which remote addresses may establish Modbus TCP connections. Its default value,
+`*`, allows every remote address. Existing and migrated devices whose setting is missing or null
+also use `*`.
+
+### Syntax
+
+To restrict access, provide a comma-separated allow list. A remote address is allowed when it
+matches any entry; entry order does not matter.
+
+| Entry form | Example | Meaning |
+| --- | --- | --- |
+| Any address | `*` | No address restriction |
+| IPv4 literal | `192.168.1.50` | One address |
+| IPv4 CIDR block | `192.168.1.0/24` | Every address in the block |
+| IPv4 trailing wildcard | `192.168.1.*`, `192.168.*`, `10.*` | An octet-aligned address block |
+| IPv4 short range | `192.168.1.10-20` | `.10` through `.20`, inclusive |
+| IPv4 full range | `192.168.1.10-192.168.2.5` | The inclusive address interval |
+
+Each list may contain at most 256 entries and 4,096 characters. IPv4 literals must contain four
+decimal octets from `0` through `255`, without leading zeros. CIDR prefix lengths must be from `/0`
+through `/32`. Wildcards must replace whole trailing octets;
+`192.168.*.*` is also accepted and means the same `/16` as `192.168.*`. CIDR entries must use the
+network address, with all host bits zero.
+
+Whitespace is ignored around comma-delimited entries but is invalid inside an entry. Empty entries,
+including a trailing comma, are invalid. DNS names, IPv6 addresses, regular expressions, and
+negated deny rules are not supported.
+
+### Enforcement and boundaries
+
+The source address is checked when each TCP connection is accepted. Saving a device configuration
+change restarts and rebinds the server, closes existing connections, and applies the new allow list.
+
+Blank values are rejected when the configuration is saved. If a malformed nonblank value reaches
+runtime, the device reports `Error: invalid allowed IP addresses` and does not bind the Modbus
+listener. A blank runtime value preserves unrestricted access and produces a warning.
+
+This setting restricts Modbus TCP access only. It does not restrict OPC UA access to the same
+process image; secure that surface through Ignition's endpoint, user authentication, and
+certificate trust settings.
+
+Restrictive entries match IPv4 addresses only and do not match IPv6 peers. For loopback access, use
+`127.0.0.1` over an IPv4 connection. If a device intentionally uses a non-IPv4 bind address, leave
+`security.allowedIpAddresses` set to `*`.
+
+The allow list complements `bindAddress`; it does not replace it. With the default `0.0.0.0`, the
+server listens on all IPv4 interfaces and the allow list determines which IPv4 peers may connect.
+Behind NAT, a Docker bridge, or a reverse proxy, multiple clients may share one visible source
+address, so the allow list cannot distinguish those clients from one another.
 
 ## OPC UA Address Syntax
 

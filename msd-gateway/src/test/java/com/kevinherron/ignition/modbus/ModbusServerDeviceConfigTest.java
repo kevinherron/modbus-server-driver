@@ -33,6 +33,7 @@ class ModbusServerDeviceConfigTest {
       assertTrue(config.processImage().persistData());
       assertFalse(config.processImage().separatePerUnitId());
       assertEquals("0", config.browsing().unitIdBrowseRanges());
+      assertEquals("*", config.security().allowedIpAddresses());
     }
 
     @Test
@@ -125,6 +126,52 @@ class ModbusServerDeviceConfigTest {
       assertThrows(IllegalArgumentException.class, () -> upgrade(settings));
     }
 
+    @Test
+    void emptySecurityDefaultsToAllowAll() {
+      ModbusServerDeviceConfig config =
+          GSON.fromJson("{\"security\": {}}", ModbusServerDeviceConfig.class);
+
+      assertEquals("*", config.security().allowedIpAddresses());
+    }
+
+    @Test
+    void nullSecurityValuesDefaultToAllowAll() {
+      ModbusServerDeviceConfig nullObject =
+          GSON.fromJson("{\"security\": null}", ModbusServerDeviceConfig.class);
+      ModbusServerDeviceConfig nullField =
+          GSON.fromJson(
+              "{\"security\": {\"allowedIpAddresses\": null}}",
+              ModbusServerDeviceConfig.class);
+
+      assertEquals("*", nullObject.security().allowedIpAddresses());
+      assertEquals("*", nullField.security().allowedIpAddresses());
+    }
+
+    @Test
+    void explicitBlankSecurityValueIsPreservedForValidation() {
+      ModbusServerDeviceConfig config =
+          GSON.fromJson(
+              "{\"security\": {\"allowedIpAddresses\": \"  \"}}",
+              ModbusServerDeviceConfig.class);
+
+      assertEquals("  ", config.security().allowedIpAddresses());
+    }
+
+    @Test
+    void explicitAllowedIpAddressesSurviveJsonRoundTrip() {
+      ModbusServerDeviceConfig expected =
+          new ModbusServerDeviceConfig(
+              ModbusServerDeviceConfig.CURRENT_CONFIG_VERSION,
+              new ModbusServerDeviceConfig.Connectivity("127.0.0.1", 1502),
+              new ModbusServerDeviceConfig.Browsing(
+                  "0-9", "10-19", "20-29", "30-39", "0,2"),
+              new ModbusServerDeviceConfig.ProcessImageSettings(true, true),
+              new ModbusServerDeviceConfig.Security(
+                  "192.168.1.50, 10.0.0.0/8, 172.16.*"));
+
+      assertEquals(expected, roundTrip(expected));
+    }
+
     // Ignition persists this record as JSON, so both mode choices and the exact browse expression
     // must survive serialization rather than falling back to constructor defaults.
     @Test
@@ -161,6 +208,7 @@ class ModbusServerDeviceConfigTest {
       assertFalse(encoded.has("persistence"));
       assertTrue(encoded.getAsJsonObject("processImage").has("persistData"));
       assertTrue(encoded.getAsJsonObject("processImage").has("separatePerUnitId"));
+      assertEquals("*", encoded.getAsJsonObject("security").get("allowedIpAddresses").getAsString());
     }
   }
 
@@ -173,6 +221,8 @@ class ModbusServerDeviceConfigTest {
           EXTENSION_POINT.settingsSchema().orElseThrow().getAsJsonObject("properties");
       JsonObject processImageProperties =
           properties.getAsJsonObject("processImage").getAsJsonObject("properties");
+      JsonObject securityProperties =
+          properties.getAsJsonObject("security").getAsJsonObject("properties");
 
       assertFalse(properties.has("configVersion"));
       assertFalse(properties.has("persistence"));
@@ -180,6 +230,8 @@ class ModbusServerDeviceConfigTest {
       assertTrue(processImageProperties.has("separatePerUnitId"));
       assertEquals("PROCESS IMAGE", formCategory(processImageProperties, "persistData"));
       assertEquals("PROCESS IMAGE", formCategory(processImageProperties, "separatePerUnitId"));
+      assertTrue(securityProperties.has("allowedIpAddresses"));
+      assertEquals("SECURITY", formCategory(securityProperties, "allowedIpAddresses"));
     }
   }
 

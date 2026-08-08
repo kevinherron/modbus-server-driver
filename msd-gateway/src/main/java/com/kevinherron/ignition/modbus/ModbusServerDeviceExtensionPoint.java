@@ -9,13 +9,15 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceExtension
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceProfileConfig;
 import com.inductiveautomation.ignition.gateway.web.nav.ExtensionPointResourceForm;
 import com.inductiveautomation.ignition.gateway.web.nav.WebUiComponent;
+import com.kevinherron.ignition.modbus.security.AllowedIpAddressFilter;
 import java.util.Optional;
 
 /**
  * Registers the Modbus server device type with Ignition and defines its configuration boundary.
  *
- * <p>The extension point supplies the web configuration schema, validates settings before device
- * creation, and creates {@link ModbusServerDevice} instances for the Ignition device lifecycle.
+ * <p>The extension point supplies the web configuration schema, validates settings—including
+ * connection admission—before device creation, and creates {@link ModbusServerDevice} instances
+ * for the Ignition device lifecycle.
  */
 public class ModbusServerDeviceExtensionPoint
     extends DeviceExtensionPoint<ModbusServerDeviceConfig> {
@@ -49,6 +51,16 @@ public class ModbusServerDeviceExtensionPoint
         settings.connectivity().port() > 0 && settings.connectivity().port() < 65536,
         "connectivity.port",
         "port must be between 1 and 65535");
+
+    String allowedIpAddresses = settings.security().allowedIpAddresses();
+    errors.requireNotBlank("security.allowedIpAddresses", allowedIpAddresses);
+    if (!allowedIpAddresses.isBlank()) {
+      try {
+        AllowedIpAddressFilter.parse(allowedIpAddresses);
+      } catch (IllegalArgumentException e) {
+        errors.addFieldMessage("security.allowedIpAddresses", e.getMessage());
+      }
+    }
 
     try {
       String ranges = settings.browsing().coilBrowseRanges();

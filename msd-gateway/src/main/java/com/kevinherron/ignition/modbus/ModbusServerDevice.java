@@ -8,6 +8,8 @@ import com.digitalpetri.modbus.tcp.server.NettyTcpServerTransport;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
+import com.kevinherron.ignition.modbus.security.AllowedIpAddressFilter;
+import com.kevinherron.ignition.modbus.security.AllowedIpAddressHandler;
 import java.io.UncheckedIOException;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -21,7 +23,8 @@ import org.slf4j.LoggerFactory;
  * <p>The Ignition device framework creates this type through {@link
  * ModbusServerDeviceExtensionPoint} and owns its lifecycle. Construction prepares process-image
  * routing and persistent state before the network endpoint can accept requests. {@link #startup()}
- * then starts the Modbus server and registers the browse and variable address spaces.
+ * then installs connection admission, starts the Modbus server, and registers the browse and
+ * variable address spaces.
  *
  * <p>{@link #shutdown()} must be allowed to complete so protocol requests stop before persistence
  * listeners are detached and queued writes are drained. A shut-down instance is not reusable.
@@ -46,7 +49,8 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
    * Creates an unstarted device from validated Ignition settings.
    *
    * @param deviceContext the Ignition runtime context that owns the device and its OPC UA nodes.
-   * @param deviceConfig the decoded connection, browsing, process-image, and persistence settings.
+   * @param deviceConfig the decoded connection, browsing, process-image, persistence, and security
+   *     settings.
    */
   public ModbusServerDevice(DeviceContext deviceContext, ModbusServerDeviceConfig deviceConfig) {
 
@@ -84,12 +88,29 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
   /**
    * Starts the configured Modbus TCP listener and registers both OPC UA address spaces.
    *
-   * <p>If the listener cannot start, the device status becomes {@code Error} and the failure is
-   * logged. Any resources that started successfully are rolled back, and interruption is restored
-   * on the calling thread.
+   * <p>If connection admission is invalid or the listener cannot start, the device status becomes
+   * {@code Error} and the failure is logged. Any resources that started successfully are rolled
+   * back, and interruption is restored on the calling thread.
    */
   @Override
   public void startup() {
+    String allowedIpAddresses = deviceConfig.security().allowedIpAddresses();
+    if (allowedIpAddresses.isBlank()) {
+      logger.warn("Allowed IP addresses is blank; preserving unrestricted access");
+    }
+
+    final AllowedIpAddressFilter ipFilter;
+    try {
+      ipFilter = AllowedIpAddressFilter.parse(allowedIpAddresses);
+    } catch (IllegalArgumentException e) {
+      status = "Error: invalid allowed IP addresses";
+      logger.error("Invalid allowed IP addresses; not binding Modbus server", e);
+      return;
+    }
+
+    final AllowedIpAddressHandler ipHandler =
+        ipFilter.allowsAll() ? null : new AllowedIpAddressHandler(ipFilter);
+
     var transport =
         new NettyTcpServerTransport(
             NettyServerTransportConfig.create(
@@ -98,6 +119,9 @@ public class ModbusServerDevice extends AddressSpaceComposite implements Device 
                   cfg.port = deviceConfig.connectivity().port();
                   cfg.executor = OpcUa.SHARED_EXECUTOR;
                   cfg.eventLoopGroup = OpcUa.SHARED_EVENT_LOOP;
+                  if (ipHandler != null) {
+                    cfg.pipelineCustomizer = pipeline -> pipeline.addFirst("ipFilter", ipHandler);
+                  }
                 }));
 
     server = ModbusTcpServer.create(transport, services);

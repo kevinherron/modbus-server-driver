@@ -6,12 +6,13 @@ import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.F
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.FormField;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.Hidden;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.Label;
+import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.MaxLength;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.annotations.Required;
 import com.inductiveautomation.ignition.gateway.web.nav.FormFieldType;
 
 /**
- * Defines the versioned connection, OPC UA browsing, and process-image settings for a Modbus
- * server device.
+ * Defines the versioned connection, OPC UA browsing, process-image, and connection-security
+ * settings for a Modbus server device.
  *
  * <p>The Ignition resource form uses the component annotations to build its schema. Decoders may
  * omit optional nested settings; the canonical constructor applies their documented defaults.
@@ -23,7 +24,8 @@ public record ModbusServerDeviceConfig(
         int configVersion,
     Connectivity connectivity,
     Browsing browsing,
-    ProcessImageSettings processImage) {
+    ProcessImageSettings processImage,
+    Security security) {
 
   /** Current persisted settings format. */
   public static final int CURRENT_CONFIG_VERSION = 2;
@@ -31,6 +33,16 @@ public record ModbusServerDeviceConfig(
   /** Applies documented defaults to optional nested settings. */
   public ModbusServerDeviceConfig {
     processImage = processImage == null ? new ProcessImageSettings(false, false) : processImage;
+    security = security == null ? new Security(null) : security;
+  }
+
+  /** Creates settings with unrestricted connection admission. */
+  public ModbusServerDeviceConfig(
+      int configVersion,
+      Connectivity connectivity,
+      Browsing browsing,
+      ProcessImageSettings processImage) {
+    this(configVersion, connectivity, browsing, processImage, null);
   }
 
   /** Identifies the local interface and TCP port used by the Modbus server. */
@@ -108,6 +120,25 @@ public record ModbusServerDeviceConfig(
           @FormField(FormFieldType.CHECKBOX)
           @Label("")
           @Description("Whether to use a separate process image for each unit ID.")
-          @DefaultValue("false")
-          boolean separatePerUnitId) {}
+           @DefaultValue("false")
+           boolean separatePerUnitId) {}
+
+  /** Controls which remote addresses may open Modbus TCP connections. */
+  public record Security(
+      @FormCategory("SECURITY")
+          @FormField(FormFieldType.TEXT)
+          @Label("Allowed IP Addresses *")
+          @Required
+          @Description(
+              "Comma-separated list of remote addresses allowed to connect. Accepts \"*\", "
+                  + "IPv4 literals, IPv4 CIDR blocks, trailing IPv4 wildcards, and IPv4 ranges.")
+          @DefaultValue("*")
+          @MaxLength(4096)
+          String allowedIpAddresses) {
+
+    /** Normalizes an omitted allow list to {@code *} without changing blank text. */
+    public Security {
+      allowedIpAddresses = allowedIpAddresses == null ? "*" : allowedIpAddresses;
+    }
+  }
 }
