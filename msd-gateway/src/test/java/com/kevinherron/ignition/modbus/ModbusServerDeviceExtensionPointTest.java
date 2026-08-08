@@ -35,9 +35,10 @@ class ModbusServerDeviceExtensionPointTest {
   private static ValidationErrors validate(String allowedIpAddresses) {
     ModbusServerDeviceConfig config =
         new ModbusServerDeviceConfig(
+            ModbusServerDeviceConfig.CURRENT_CONFIG_VERSION,
             new ModbusServerDeviceConfig.Connectivity("0.0.0.0", 502),
-            new ModbusServerDeviceConfig.Browsing("", "", "", ""),
-            new ModbusServerDeviceConfig.Persistence(false),
+            new ModbusServerDeviceConfig.Browsing("", "", "", "", "0"),
+            new ModbusServerDeviceConfig.ProcessImageSettings(false, false),
             new ModbusServerDeviceConfig.Security(allowedIpAddresses));
     ValidationErrors.Builder errors = ValidationErrors.newBuilder();
 

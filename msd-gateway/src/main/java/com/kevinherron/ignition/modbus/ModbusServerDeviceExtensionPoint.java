@@ -1,5 +1,6 @@
 package com.kevinherron.ignition.modbus;
 
+import com.inductiveautomation.ignition.gateway.config.JsonSettingsUpgrader;
 import com.inductiveautomation.ignition.gateway.config.ValidationErrors;
 import com.inductiveautomation.ignition.gateway.dataroutes.openapi.SchemaUtil;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
@@ -12,15 +13,16 @@ import com.kevinherron.ignition.modbus.security.AllowedIpAddressFilter;
 import java.util.Optional;
 
 /**
- * Integrates {@link ModbusServerDevice} with Ignition's device-extension framework.
+ * Registers the Modbus server device type with Ignition and defines its configuration boundary.
  *
- * <p>This extension point supplies the Gateway resource form, validates device configuration at
- * save time, and creates the device instance managed by the Gateway.
+ * <p>The extension point supplies the web configuration schema, validates settings—including
+ * connection admission—before device creation, and creates {@link ModbusServerDevice} instances
+ * for the Ignition device lifecycle.
  */
 public class ModbusServerDeviceExtensionPoint
     extends DeviceExtensionPoint<ModbusServerDeviceConfig> {
 
-  /** Creates the extension-point registration for the Modbus server device profile. */
+  /** Creates the extension point registered by the gateway module hook. */
   protected ModbusServerDeviceExtensionPoint() {
     super(
         "com.kevinherron.modbus-server-driver",
@@ -38,15 +40,11 @@ public class ModbusServerDeviceExtensionPoint
     return new ModbusServerDevice(deviceContext, deviceConfig);
   }
 
-  /**
-   * Adds field-scoped errors before the Gateway accepts a device configuration.
-   *
-   * <p>Connection allow lists use the same parser as runtime admission, while browse ranges use the
-   * address-space parser that later consumes them.
-   *
-   * @param settings the complete settings being considered for persistence.
-   * @param errors the builder that receives field-scoped validation messages.
-   */
+  @Override
+  public Optional<JsonSettingsUpgrader> getSettingsUpgrader() {
+    return Optional.of(ModbusServerDeviceConfigUpgrader.INSTANCE);
+  }
+
   @Override
   protected void validate(ModbusServerDeviceConfig settings, ValidationErrors.Builder errors) {
     errors.checkField(
@@ -100,6 +98,32 @@ public class ModbusServerDeviceExtensionPoint
     } catch (Exception e) {
       errors.addFieldMessage("browsing.inputRegisterBrowseRanges", "invalid input register ranges");
     }
+
+    try {
+      validateUnitIdBrowseRanges(settings.browsing().unitIdBrowseRanges());
+    } catch (IllegalArgumentException e) {
+      errors.addFieldMessage("browsing.unitIdBrowseRanges", "invalid unit ID ranges");
+    }
+  }
+
+  /**
+   * Validates the grammar and bounds of unit IDs selected for OPC UA browsing.
+   *
+   * <p>An empty value is valid and selects no unit folders. Entries are comma-separated unit IDs
+   * or inclusive ranges, and every bound must be between 0 and 255. This setting affects browsing
+   * only; it is not a protocol allowlist.
+   *
+   * @param ranges the unit ID browse-range expression.
+   * @throws IllegalArgumentException if an entry is malformed, reversed, or out of range.
+   */
+  static void validateUnitIdBrowseRanges(String ranges) {
+    if (ranges == null || ranges.isEmpty()) {
+      return;
+    }
+
+    // Delegating to the runtime parser guarantees validation accepts exactly the expressions
+    // BrowsableAddressSpace accepts at device startup.
+    BrowsableAddressSpace.expandUnitIdRanges(ranges);
   }
 
   @Override

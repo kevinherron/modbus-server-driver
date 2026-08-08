@@ -1,7 +1,11 @@
 package com.kevinherron.ignition.modbus;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.eclipse.milo.opcua.sdk.core.Reference;
@@ -29,21 +33,53 @@ import org.eclipse.milo.opcua.stack.core.types.structured.ViewDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Supplies the configured OPC UA browse hierarchy for a {@link ModbusServerDevice}.
+ *
+ * <p>This fragment creates device, area, unit, and register-group folders. Variable NodeIds remain
+ * address strings resolved by {@link ModbusAddressSpace}; browsing therefore does not create or
+ * authorize process images. Unified mode exposes the legacy root area folders, while separate mode
+ * replaces them with the configured unit folders.
+ *
+ * <p>The owning device starts and stops this fragment with its other OPC UA address space.
+ */
 public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecycle {
 
-  private final Logger logger = LoggerFactory.getLogger(getClass());
+  private static final List<String> AREA_NAMES =
+      List.of("Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters");
+  private static final List<String> REGISTER_DATA_TYPES =
+      List.of("int16", "uint16", "int32", "uint32", "int64", "uint64", "float", "double");
+  // Digit counts are bounded so client-supplied NodeIds can never overflow Integer.parseInt.
+  private static final Pattern ENUMERATED_AREA_PATTERN =
+      Pattern.compile("_(C|DI|HR|IR)(\\d{1,5})_");
+  private static final Pattern UNIT_ENUMERATED_AREA_PATTERN =
+      Pattern.compile("Unit(\\d{1,3})\\._(HR|IR)(\\d{1,5})_");
+  private static final Pattern UNIT_AREA_FOLDER_PATTERN =
+      Pattern.compile("Unit(\\d{1,3})\\.(Coils|DiscreteInputs|HoldingRegisters|InputRegisters)");
+  private static final Pattern UNIT_RANGE_PATTERN = Pattern.compile("(\\d+)(?:-(\\d+))?");
 
-  private final Pattern enumeratedAreaPattern = Pattern.compile("_(C|DI|HR|IR)(\\d+)_");
+  private final Logger logger = LoggerFactory.getLogger(getClass());
 
   private final AddressSpaceFilter filter;
 
   private final ModbusServerDevice device;
+  private final boolean separatePerUnitId;
+  private final Set<Integer> configuredUnitIds;
   private final SubscriptionModel subscriptionModel;
 
+  /**
+   * Creates an unstarted browse fragment for a device.
+   *
+   * @param server the OPC UA server that owns the address space.
+   * @param device the device whose settings define the browse hierarchy.
+   */
   public BrowsableAddressSpace(OpcUaServer server, ModbusServerDevice device) {
     super(server, device);
 
     this.device = device;
+    separatePerUnitId = device.deviceConfig.processImage().separatePerUnitId();
+    configuredUnitIds =
+        Set.copyOf(expandUnitIdRanges(device.deviceConfig.browsing().unitIdBrowseRanges()));
 
     filter =
         SimpleAddressSpaceFilter.create(
@@ -57,10 +93,17 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
               } else {
                 String id = nodeId.getIdentifier().toString();
                 id = id.substring(device.deviceContext.getName().length() + 2);
-                return switch (id) {
-                  case "Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters" -> true;
-                  default -> enumeratedAreaPattern.matcher(id).matches();
-                };
+
+                if (separatePerUnitId) {
+                  Matcher matcher = UNIT_ENUMERATED_AREA_PATTERN.matcher(id);
+                  return matcher.matches()
+                      && configuredUnitIds.contains(Integer.parseInt(matcher.group(1)));
+                } else {
+                  return switch (id) {
+                    case "Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters" -> true;
+                    default -> ENUMERATED_AREA_PATTERN.matcher(id).matches();
+                  };
+                }
               }
             });
 
@@ -92,84 +135,39 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     String id = nodeId.getIdentifier().toString();
     id = id.substring(device.deviceContext.getName().length() + 2);
 
+    if (separatePerUnitId) {
+      Matcher areaMatcher = UNIT_AREA_FOLDER_PATTERN.matcher(id);
+      if (areaMatcher.matches()) {
+        int unitId = Integer.parseInt(areaMatcher.group(1));
+        if (configuredUnitIds.contains(unitId)) {
+          return browseArea(nodeId, areaMatcher.group(2), unitId);
+        }
+      }
+
+      Matcher matcher = UNIT_ENUMERATED_AREA_PATTERN.matcher(id);
+      if (matcher.matches()) {
+        int unitId = Integer.parseInt(matcher.group(1));
+        if (configuredUnitIds.contains(unitId)) {
+          String area = matcher.group(2);
+          int address = Integer.parseInt(matcher.group(3));
+
+          return ReferenceResult.of(
+              createRegisterAddressReferences(nodeId, area, address, unitId));
+        }
+      }
+
+      return super.browse(context, view, List.of(nodeId)).get(0);
+    }
+
     return switch (id) {
-      case "Coils" -> {
-        String coilBrowseRanges = device.deviceConfig.browsing().coilBrowseRanges();
-
-        if (coilBrowseRanges != null && !coilBrowseRanges.isEmpty()) {
-          var references = new ArrayList<Reference>();
-
-          List<Range> ranges = parseRanges(coilBrowseRanges);
-          for (Range range : ranges) {
-            for (int i = range.start; i <= range.end; i++) {
-              references.add(
-                  new Reference(
-                      nodeId,
-                      NodeIds.HasComponent,
-                      device.deviceContext.nodeId("C%d".formatted(i)).expanded(),
-                      Reference.Direction.FORWARD));
-            }
-          }
-
-          yield ReferenceResult.of(references);
-        } else {
-          yield ReferenceResult.of(List.of());
-        }
-      }
-      case "DiscreteInputs" -> {
-        String discreteInputBrowseRanges =
-            device.deviceConfig.browsing().discreteInputBrowseRanges();
-
-        if (discreteInputBrowseRanges != null && !discreteInputBrowseRanges.isEmpty()) {
-          var references = new ArrayList<Reference>();
-
-          List<Range> ranges = parseRanges(discreteInputBrowseRanges);
-          for (Range range : ranges) {
-            for (int i = range.start; i <= range.end; i++) {
-              references.add(
-                  new Reference(
-                      nodeId,
-                      NodeIds.HasComponent,
-                      device.deviceContext.nodeId("DI%d".formatted(i)).expanded(),
-                      Reference.Direction.FORWARD));
-            }
-          }
-
-          yield ReferenceResult.of(references);
-        } else {
-          yield ReferenceResult.of(List.of());
-        }
-      }
-      case "HoldingRegisters" -> {
-        String holdingRegisterBrowseRanges =
-            device.deviceConfig.browsing().holdingRegisterBrowseRanges();
-
-        if (holdingRegisterBrowseRanges != null && !holdingRegisterBrowseRanges.isEmpty()) {
-          yield ReferenceResult.of(
-              createRegisterFolderReferences(
-                  nodeId, "_HR%d_", parseRanges(holdingRegisterBrowseRanges)));
-        } else {
-          yield ReferenceResult.of(List.of());
-        }
-      }
-      case "InputRegisters" -> {
-        String inputRegisterBrowseRanges =
-            device.deviceConfig.browsing().inputRegisterBrowseRanges();
-
-        if (inputRegisterBrowseRanges != null && !inputRegisterBrowseRanges.isEmpty()) {
-          yield ReferenceResult.of(
-              createRegisterFolderReferences(
-                  nodeId, "_IR%d_", parseRanges(inputRegisterBrowseRanges)));
-        } else {
-          yield ReferenceResult.of(List.of());
-        }
-      }
+      case "Coils", "DiscreteInputs", "HoldingRegisters", "InputRegisters" ->
+          browseArea(nodeId, id, null);
       default -> {
-        Matcher matcher = enumeratedAreaPattern.matcher(id);
+        Matcher matcher = ENUMERATED_AREA_PATTERN.matcher(id);
         if (matcher.matches()) {
           String area = matcher.group(1);
           int address = Integer.parseInt(matcher.group(2));
-          yield ReferenceResult.of(createRegisterAddressReferences(nodeId, area, address));
+          yield ReferenceResult.of(createRegisterAddressReferences(nodeId, area, address, null));
         } else {
           if (logger.isDebugEnabled()) {
             logger.debug("Browsing super with: {}", nodeId);
@@ -180,36 +178,81 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     };
   }
 
-  private List<Reference> createRegisterFolderReferences(
-      NodeId nodeId, String formatString, List<Range> ranges) {
+  private ReferenceResult browseArea(NodeId nodeId, String areaName, Integer unitId) {
+    String ranges =
+        switch (areaName) {
+          case "Coils" -> device.deviceConfig.browsing().coilBrowseRanges();
+          case "DiscreteInputs" -> device.deviceConfig.browsing().discreteInputBrowseRanges();
+          case "HoldingRegisters" -> device.deviceConfig.browsing().holdingRegisterBrowseRanges();
+          case "InputRegisters" -> device.deviceConfig.browsing().inputRegisterBrowseRanges();
+          default -> throw new IllegalArgumentException("unknown area: " + areaName);
+        };
+
+    if (ranges == null || ranges.isEmpty()) {
+      return ReferenceResult.of(List.of());
+    }
+
+    String area =
+        switch (areaName) {
+          case "Coils" -> "C";
+          case "DiscreteInputs" -> "DI";
+          case "HoldingRegisters" -> "HR";
+          case "InputRegisters" -> "IR";
+          default -> throw new IllegalArgumentException("unknown area: " + areaName);
+        };
 
     var references = new ArrayList<Reference>();
+    for (String identifier : browseIdentifiers(area, parseRanges(ranges), unitId)) {
+      references.add(
+          new Reference(
+              nodeId,
+              NodeIds.HasComponent,
+              device.deviceContext.nodeId(identifier).expanded(),
+              Reference.Direction.FORWARD));
+    }
 
+    return ReferenceResult.of(references);
+  }
+
+  /**
+   * Builds the child identifiers exposed beneath one Modbus area folder.
+   *
+   * @param area the Modbus area abbreviation: {@code C}, {@code DI}, {@code HR}, or {@code IR}.
+   * @param ranges the address ranges to expose.
+   * @param unitId the unit ID qualifier, or {@code null} for unified identifiers.
+   * @return the variable or register-group identifiers in range order.
+   * @throws IllegalArgumentException if {@code area} is not supported.
+   */
+  static List<String> browseIdentifiers(String area, List<Range> ranges, Integer unitId) {
+    var identifiers = new ArrayList<String>();
     for (Range range : ranges) {
       for (int i = range.start; i <= range.end; i++) {
-        NodeId childNodeId = device.deviceContext.nodeId(formatString.formatted(i));
-        references.add(
-            new Reference(
-                nodeId, NodeIds.HasComponent, childNodeId.expanded(), Reference.Direction.FORWARD));
+        if (area.equals("HR") || area.equals("IR")) {
+          identifiers.add(
+              unitId == null
+                  ? "_%s%d_".formatted(area, i)
+                  : registerFolderIdentifier(unitId, area, i));
+        } else if (area.equals("C") || area.equals("DI")) {
+          String address = "%s%d".formatted(area, i);
+          identifiers.add(unitId == null ? address : variableIdentifier(unitId, address));
+        } else {
+          throw new IllegalArgumentException("unknown area: " + area);
+        }
       }
     }
 
-    return references;
+    return identifiers;
   }
 
   private List<Reference> createRegisterAddressReferences(
-      NodeId parentNodeId, String area, int address) {
+      NodeId parentNodeId, String area, int address, Integer unitId) {
 
     var references = new ArrayList<Reference>();
 
     switch (area) {
       case "HR", "IR" -> {
-        List<String> dataTypes =
-            List.of("int16", "uint16", "int32", "uint32", "int64", "uint64", "float", "double");
-
-        for (String dataType : dataTypes) {
-          NodeId targetNodeId =
-              device.deviceContext.nodeId("%s<%s>%d".formatted(area, dataType, address));
+        for (String identifier : registerAddressIdentifiers(area, address, unitId)) {
+          NodeId targetNodeId = device.deviceContext.nodeId(identifier);
 
           references.add(
               new Reference(
@@ -225,6 +268,29 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     }
 
     return references;
+  }
+
+  /**
+   * Builds the typed variable identifiers exposed beneath a register-group folder.
+   *
+   * @param area the {@code HR} or {@code IR} area abbreviation.
+   * @param address the register offset represented by the folder.
+   * @param unitId the unit ID qualifier, or {@code null} for unified identifiers.
+   * @return one variable identifier for each supported register data type.
+   * @throws IllegalArgumentException if {@code area} is not a register area.
+   */
+  static List<String> registerAddressIdentifiers(String area, int address, Integer unitId) {
+    if (!area.equals("HR") && !area.equals("IR")) {
+      throw new IllegalArgumentException("not a register area: " + area);
+    }
+
+    var identifiers = new ArrayList<String>();
+    for (String dataType : REGISTER_DATA_TYPES) {
+      String registerAddress = "%s<%s>%d".formatted(area, dataType, address);
+      identifiers.add(
+          unitId == null ? registerAddress : variableIdentifier(unitId, registerAddress));
+    }
+    return identifiers;
   }
 
   @Override
@@ -268,7 +334,12 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
             values.add(value);
           }
           default -> {
-            if (enumeratedAreaPattern.matcher(id).matches()) {
+            boolean syntheticNode =
+                separatePerUnitId
+                    ? isConfiguredUnitRegisterFolder(id)
+                    : ENUMERATED_AREA_PATTERN.matcher(id).matches();
+
+            if (syntheticNode) {
               DataValue value =
                   AttributeId.from(readValueId.getAttributeId())
                       .map(
@@ -290,27 +361,35 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     return values;
   }
 
+  private boolean isConfiguredUnitRegisterFolder(String identifier) {
+    Matcher matcher = UNIT_ENUMERATED_AREA_PATTERN.matcher(identifier);
+    return matcher.matches() && configuredUnitIds.contains(Integer.parseInt(matcher.group(1)));
+  }
+
   private Variant readAttribute(NodeId nodeId, AttributeId attributeId) {
     Object o =
         switch (attributeId) {
           case NodeId -> nodeId;
           case NodeClass -> NodeClass.Object;
-          case BrowseName -> {
-            String id = nodeId.getIdentifier().toString();
-            String addr = id.substring(device.deviceContext.getName().length() + 2);
-            addr = addr.replace("_", "");
-            yield device.deviceContext.qualifiedName(addr);
-          }
-          case DisplayName, Description -> {
-            String id = nodeId.getIdentifier().toString();
-            String addr = id.substring(device.deviceContext.getName().length() + 2);
-            addr = addr.replace("_", "");
-            yield LocalizedText.english(addr);
-          }
+          case BrowseName -> device.deviceContext.qualifiedName(syntheticFolderName(nodeId));
+          case DisplayName, Description ->
+              LocalizedText.english(syntheticFolderName(nodeId));
           default -> null;
         };
 
     return o == null ? Variant.NULL_VALUE : new Variant(o);
+  }
+
+  private String syntheticFolderName(NodeId nodeId) {
+    String id = nodeId.getIdentifier().toString();
+    String addr = id.substring(device.deviceContext.getName().length() + 2);
+    // Separate-mode identifiers are unit-qualified ("Unit7._HR0_"); the folder's name is only
+    // the register-group segment, matching the unified-mode name ("HR0").
+    int dot = addr.indexOf('.');
+    if (dot >= 0) {
+      addr = addr.substring(dot + 1);
+    }
+    return addr.replace("_", "");
   }
 
   @Override
@@ -354,62 +433,141 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
             device.deviceContext.getRootNodeId().expanded(),
             Reference.Direction.INVERSE));
 
-    addCoilsNode(deviceNode);
-    addDiscreteInputsNode(deviceNode);
-    addHoldingRegistersNode(deviceNode);
-    addInputRegistersNode(deviceNode);
+    Map<String, UaFolderNode> parentNodes = new HashMap<>();
+    parentNodes.put("", deviceNode);
+
+    for (FolderDefinition definition :
+        folderDefinitions(separatePerUnitId, configuredUnitIds.stream().sorted().toList())) {
+      var folderNode =
+          new UaFolderNode(
+              getNodeContext(),
+              device.deviceContext.nodeId(definition.identifier()),
+              device.deviceContext.qualifiedName(definition.browseName()),
+              new LocalizedText(definition.displayName()));
+
+      getNodeManager().addNode(folderNode);
+      parentNodes.get(definition.parentIdentifier()).addOrganizes(folderNode);
+      parentNodes.put(definition.identifier(), folderNode);
+    }
   }
 
-  private void addCoilsNode(UaFolderNode deviceNode) {
-    var coilsNode =
-        new UaFolderNode(
-            getNodeContext(),
-            device.deviceContext.nodeId("Coils"),
-            device.deviceContext.qualifiedName("Coils"),
-            new LocalizedText("Coils"));
+  record FolderDefinition(
+      String identifier, String parentIdentifier, String browseName, String displayName) {}
 
-    getNodeManager().addNode(coilsNode);
+  /**
+   * Describes the concrete folder nodes for unified or separate browsing.
+   *
+   * @param separatePerUnitId whether unit folders replace the unified root area folders.
+   * @param unitIds the unit IDs whose folders should be exposed.
+   * @return folder definitions with unit IDs sorted and de-duplicated.
+   * @throws IllegalArgumentException if a unit ID is outside 0 through 255.
+   */
+  static List<FolderDefinition> folderDefinitions(
+      boolean separatePerUnitId, List<Integer> unitIds) {
 
-    deviceNode.addOrganizes(coilsNode);
+    var definitions = new ArrayList<FolderDefinition>();
+
+    if (separatePerUnitId) {
+      for (int unitId : new TreeSet<>(unitIds)) {
+        String unitIdentifier = unitFolderIdentifier(unitId);
+        definitions.add(
+            new FolderDefinition(unitIdentifier, "", unitIdentifier, "Unit " + unitId));
+
+        for (String areaName : AREA_NAMES) {
+          definitions.add(
+              new FolderDefinition(
+                  areaFolderIdentifier(unitId, areaName),
+                  unitIdentifier,
+                  areaName,
+                  areaName));
+        }
+      }
+    } else {
+      for (String areaName : AREA_NAMES) {
+        definitions.add(new FolderDefinition(areaName, "", areaName, areaName));
+      }
+    }
+
+    return List.copyOf(definitions);
   }
 
-  private void addDiscreteInputsNode(UaFolderNode deviceNode) {
-    var discreteInputsNode =
-        new UaFolderNode(
-            getNodeContext(),
-            device.deviceContext.nodeId("DiscreteInputs"),
-            device.deviceContext.qualifiedName("DiscreteInputs"),
-            new LocalizedText("DiscreteInputs"));
-
-    getNodeManager().addNode(discreteInputsNode);
-
-    deviceNode.addOrganizes(discreteInputsNode);
+  static String unitFolderIdentifier(int unitId) {
+    validateUnitId(unitId);
+    return "Unit" + unitId;
   }
 
-  private void addHoldingRegistersNode(UaFolderNode deviceNode) {
-    var holdingRegistersNode =
-        new UaFolderNode(
-            getNodeContext(),
-            device.deviceContext.nodeId("HoldingRegisters"),
-            device.deviceContext.qualifiedName("HoldingRegisters"),
-            new LocalizedText("HoldingRegisters"));
-
-    getNodeManager().addNode(holdingRegistersNode);
-
-    deviceNode.addOrganizes(holdingRegistersNode);
+  static String areaFolderIdentifier(int unitId, String areaName) {
+    validateUnitId(unitId);
+    if (!AREA_NAMES.contains(areaName)) {
+      throw new IllegalArgumentException("unknown area: " + areaName);
+    }
+    return "%s.%s".formatted(unitFolderIdentifier(unitId), areaName);
   }
 
-  private void addInputRegistersNode(UaFolderNode deviceNode) {
-    var inputRegistersNode =
-        new UaFolderNode(
-            getNodeContext(),
-            device.deviceContext.nodeId("InputRegisters"),
-            device.deviceContext.qualifiedName("InputRegisters"),
-            new LocalizedText("InputRegisters"));
+  static String registerFolderIdentifier(int unitId, String area, int address) {
+    validateUnitId(unitId);
+    if (!area.equals("HR") && !area.equals("IR")) {
+      throw new IllegalArgumentException("not a register area: " + area);
+    }
+    return "%s._%s%d_".formatted(unitFolderIdentifier(unitId), area, address);
+  }
 
-    getNodeManager().addNode(inputRegistersNode);
+  static String variableIdentifier(int unitId, String address) {
+    validateUnitId(unitId);
+    return "%d.%s".formatted(unitId, address);
+  }
 
-    deviceNode.addOrganizes(inputRegistersNode);
+  private static void validateUnitId(int unitId) {
+    ProcessImageManager.validateUnitId(unitId);
+  }
+
+  /**
+   * Expands a unit ID browse expression into an ascending, de-duplicated list.
+   *
+   * @param ranges comma-separated unit IDs and inclusive ranges, or an empty string.
+   * @return the selected unit IDs, or an empty list for an empty expression.
+   * @throws IllegalArgumentException if the expression is null, malformed, reversed, or outside 0
+   *     through 255.
+   */
+  static List<Integer> expandUnitIdRanges(String ranges) {
+    if (ranges == null) {
+      throw new IllegalArgumentException("unit ID browse ranges must not be null");
+    }
+    if (ranges.isEmpty()) {
+      return List.of();
+    }
+
+    var unitIds = new TreeSet<Integer>();
+    for (String range : ranges.split(",", -1)) {
+      Matcher matcher = UNIT_RANGE_PATTERN.matcher(range);
+      if (!matcher.matches()) {
+        throw new IllegalArgumentException("invalid unit ID browse range: " + range);
+      }
+
+      int start = parseUnitId(matcher.group(1));
+      int end = matcher.group(2) == null ? start : parseUnitId(matcher.group(2));
+      if (end < start) {
+        throw new IllegalArgumentException("unit ID browse range is reversed: " + range);
+      }
+
+      for (int unitId = start; unitId <= end; unitId++) {
+        unitIds.add(unitId);
+      }
+    }
+
+    return List.copyOf(unitIds);
+  }
+
+  private static int parseUnitId(String value) {
+    final int unitId;
+    try {
+      unitId = Integer.parseInt(value);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("invalid unit ID: " + value, e);
+    }
+
+    validateUnitId(unitId);
+    return unitId;
   }
 
   record Range(int start, int end) {}

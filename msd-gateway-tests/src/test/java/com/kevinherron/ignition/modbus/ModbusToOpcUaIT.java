@@ -44,6 +44,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+/**
+ * Verifies scalar Modbus-to-OPC-UA interoperability through a real Ignition Gateway.
+ *
+ * <p>The shared container restores the legacy gateway backup, installs the current module, and
+ * exposes both protocol endpoints. Tests use independent Modbus and OPC UA clients so they cover
+ * module wiring, configuration compatibility, address parsing, and process-image routing rather
+ * than only the in-memory helpers exercised by unit tests.
+ */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ModbusToOpcUaIT {
 
@@ -135,6 +143,33 @@ public class ModbusToOpcUaIT {
 
       assertEquals(randomValues.get(i), value.getValue().getValue());
     }
+  }
+
+  // The gateway backup predates the per-unit properties; this end-to-end check protects existing
+  // devices from silently changing storage and routing semantics after a module upgrade.
+  @Test
+  void legacyConfigurationUsesUnifiedProcessImageAcrossUnitIds() throws Exception {
+    int address = 12345;
+    short expected = (short) 0x5A3C;
+
+    modbusClient.writeSingleRegister(7, new WriteSingleRegisterRequest(address, expected));
+
+    ReadHoldingRegistersResponse modbusResponse =
+        modbusClient.readHoldingRegisters(42, new ReadHoldingRegistersRequest(address, 1));
+    assertArrayEquals(new byte[] {0x5A, 0x3C}, modbusResponse.registers());
+
+    NodeId unqualifiedNodeId =
+        NodeId.parse("ns=1;s=[modbus-server]HR<int16>%d".formatted(address));
+    NodeId prefixedNodeId =
+        NodeId.parse("ns=1;s=[modbus-server]99.HR<int16>%d".formatted(address));
+
+    DataValue unqualifiedValue =
+        opcUaClient.readValue(0.0, TimestampsToReturn.Both, unqualifiedNodeId);
+    DataValue prefixedValue =
+        opcUaClient.readValue(0.0, TimestampsToReturn.Both, prefixedNodeId);
+
+    assertEquals(expected, unqualifiedValue.getValue().getValue());
+    assertEquals(expected, prefixedValue.getValue().getValue());
   }
 
   @Test

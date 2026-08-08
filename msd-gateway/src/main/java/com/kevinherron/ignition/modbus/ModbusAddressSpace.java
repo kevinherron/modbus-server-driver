@@ -1,24 +1,15 @@
 package com.kevinherron.ignition.modbus;
 
 import com.digitalpetri.modbus.server.ProcessImage;
-import com.digitalpetri.modbus.server.ProcessImage.Modification.CoilModification;
-import com.digitalpetri.modbus.server.ProcessImage.Modification.DiscreteInputModification;
-import com.digitalpetri.modbus.server.ProcessImage.Modification.HoldingRegisterModification;
-import com.digitalpetri.modbus.server.ProcessImage.Modification.InputRegisterModification;
-import com.digitalpetri.modbus.server.ProcessImage.Transaction;
-import com.inductiveautomation.ignition.gateway.opcua.server.api.OpcUa;
 import com.kevinherron.ignition.modbus.address.ModbusAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddress.ArrayAddress;
 import com.kevinherron.ignition.modbus.address.ModbusAddressParser;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.core.Reference.Direction;
@@ -48,17 +39,18 @@ import org.eclipse.milo.opcua.stack.core.types.enumerated.TimestampsToReturn;
 import org.eclipse.milo.opcua.stack.core.types.structured.ReadValueId;
 import org.eclipse.milo.opcua.stack.core.types.structured.ViewDescription;
 import org.eclipse.milo.opcua.stack.core.types.structured.WriteValue;
-import org.eclipse.milo.opcua.stack.core.util.ExecutionQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Presents a {@link ModbusServerDevice} process image as an OPC UA address-space fragment.
+ * Presents a {@link ModbusServerDevice} process image as OPC UA variable nodes.
  *
  * <p>The fragment resolves Modbus address strings as variable nodes, exposes their value and
- * metadata attributes, and supplies monitored values through the OPC UA subscription model. Its
- * {@link Lifecycle} must be started before use and shut down with the owning device; startup also
- * restores persisted process-image data when persistence is enabled.
+ * metadata attributes, and supplies monitored values through the OPC UA subscription model. Value
+ * operations select images through {@link ProcessImageManager}; unqualified addresses select unit
+ * 0 in separate mode, and mixed-unit batches retain their original result order.
+ *
+ * <p>Its {@link Lifecycle} must be started before use and shut down with the owning device.
  */
 public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
@@ -72,7 +64,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   /**
    * Creates an unstarted address space for a Modbus server device.
    *
-   * @param device the device whose process image and OPC UA context back this address space.
+   * @param device the device whose process images and OPC UA context back this address space.
    */
   public ModbusAddressSpace(ModbusServerDevice device) {
     this.device = device;
@@ -84,22 +76,6 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   @Override
   public void startup() {
-    if (device.deviceConfig.persistence().persistData()) {
-      Path deviceFolderPath = device.deviceContext.getDeviceFolderPath().toAbsolutePath();
-
-      if (!Files.exists(deviceFolderPath)) {
-        try {
-          Files.createDirectories(deviceFolderPath);
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      }
-
-      loadProcessImage();
-
-      device.processImage.addModificationListener(new ModificationListener());
-    }
-
     subscriptionModel.startup();
 
     device.register(this);
@@ -202,13 +178,14 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
         }
       } catch (Exception e) {
         logger.error("Error reading value: id={}, addr={}", id, addr, e);
-        pending.value = new DataValue(StatusCodes.Bad_ConfigurationError);
+        pending.value = new DataValue(StatusCodes.Bad_NodeIdInvalid);
       }
     }
 
     List<DataValue> values =
         readValueAttributes(
-            device.processImage, pendingValueReads.stream().map(PendingValueRead::read).toList());
+            device.processImageManager,
+            pendingValueReads.stream().map(PendingValueRead::read).toList());
     for (int i = 0; i < pendingValueReads.size(); i++) {
       pendingValueReads.get(i).pending().value = values.get(i);
     }
@@ -241,6 +218,53 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
           }
           return values;
         });
+  }
+
+  /**
+   * Reads a batch through the manager-selected process images.
+   *
+   * <p>Each image is read in one sequential transaction. Returned values correspond positionally
+   * to {@code reads}, including when the batch contains several unit IDs. A request racing device
+   * shutdown returns {@code Bad_Shutdown}; a persistence initialization failure returns {@code
+   * Bad_InternalError}.
+   *
+   * @param processImageManager the manager that resolves each address to an image.
+   * @param reads the value requests in OPC UA request order.
+   * @return the values and statuses in the same order as {@code reads}.
+   */
+  static List<DataValue> readValueAttributes(
+      ProcessImageManager processImageManager, List<ValueRead> reads) {
+    if (reads.isEmpty()) {
+      return List.of();
+    }
+
+    Map<ProcessImage, List<IndexedValueRead>> groups = new LinkedHashMap<>();
+    DataValue[] values = new DataValue[reads.size()];
+    for (int i = 0; i < reads.size(); i++) {
+      ValueRead read = reads.get(i);
+      try {
+        ProcessImage processImage = processImageManager.get(read.address());
+        groups.computeIfAbsent(processImage, ignored -> new ArrayList<>())
+            .add(new IndexedValueRead(i, read));
+      } catch (IllegalStateException e) {
+        values[i] = new DataValue(StatusCodes.Bad_Shutdown);
+      } catch (UncheckedIOException e) {
+        // A persistent image that cannot be initialized is an internal device failure.
+        values[i] = new DataValue(StatusCodes.Bad_InternalError);
+      }
+    }
+
+    for (Map.Entry<ProcessImage, List<IndexedValueRead>> entry : groups.entrySet()) {
+      List<IndexedValueRead> indexedReads = entry.getValue();
+      List<DataValue> groupValues =
+          readValueAttributes(
+              entry.getKey(), indexedReads.stream().map(IndexedValueRead::read).toList());
+      for (int i = 0; i < indexedReads.size(); i++) {
+        values[indexedReads.get(i).index()] = groupValues.get(i);
+      }
+    }
+
+    return Arrays.asList(values);
   }
 
   static Variant readValueAttribute(
@@ -356,7 +380,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
                   new ValueWrite(
                       address, writeValue.getValue().getValue(), writeValue.getIndexRange())));
         } catch (Exception e) {
-          pending.statusCode = new StatusCode(StatusCodes.Bad_ConfigurationError);
+          pending.statusCode = new StatusCode(StatusCodes.Bad_NodeIdInvalid);
         }
       } else {
         pending.statusCode = new StatusCode(StatusCodes.Bad_NotWritable);
@@ -365,7 +389,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
     List<StatusCode> statuses =
         writeValueAttributes(
-            device.processImage,
+            device.processImageManager,
             pendingValueWrites.stream().map(PendingValueWrite::write).toList());
     for (int i = 0; i < pendingValueWrites.size(); i++) {
       pendingValueWrites.get(i).pending().statusCode = statuses.get(i);
@@ -401,6 +425,53 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
           }
         });
     return statuses;
+  }
+
+  /**
+   * Writes a batch through the manager-selected process images.
+   *
+   * <p>Each image is updated in one sequential transaction, preserving the order of writes that
+   * target that image. Returned statuses correspond positionally to {@code writes}. A request
+   * racing device shutdown returns {@code Bad_Shutdown}; a persistence initialization failure
+   * returns {@code Bad_InternalError}.
+   *
+   * @param processImageManager the manager that resolves each address to an image.
+   * @param writes the value requests in OPC UA request order.
+   * @return the write statuses in the same order as {@code writes}.
+   */
+  static List<StatusCode> writeValueAttributes(
+      ProcessImageManager processImageManager, List<ValueWrite> writes) {
+    if (writes.isEmpty()) {
+      return List.of();
+    }
+
+    Map<ProcessImage, List<IndexedValueWrite>> groups = new LinkedHashMap<>();
+    StatusCode[] statuses = new StatusCode[writes.size()];
+    for (int i = 0; i < writes.size(); i++) {
+      ValueWrite write = writes.get(i);
+      try {
+        ProcessImage processImage = processImageManager.get(write.address());
+        groups.computeIfAbsent(processImage, ignored -> new ArrayList<>())
+            .add(new IndexedValueWrite(i, write));
+      } catch (IllegalStateException e) {
+        statuses[i] = new StatusCode(StatusCodes.Bad_Shutdown);
+      } catch (UncheckedIOException e) {
+        // A persistent image that cannot be initialized is an internal device failure.
+        statuses[i] = new StatusCode(StatusCodes.Bad_InternalError);
+      }
+    }
+
+    for (Map.Entry<ProcessImage, List<IndexedValueWrite>> entry : groups.entrySet()) {
+      List<IndexedValueWrite> indexedWrites = entry.getValue();
+      List<StatusCode> groupStatuses =
+          writeValueAttributes(
+              entry.getKey(), indexedWrites.stream().map(IndexedValueWrite::write).toList());
+      for (int i = 0; i < indexedWrites.size(); i++) {
+        statuses[indexedWrites.get(i).index()] = groupStatuses.get(i);
+      }
+    }
+
+    return Arrays.asList(statuses);
   }
 
   static void writeValueAttribute(
@@ -446,287 +517,6 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
 
   // endregion
 
-  // region ProcessImage Load/Save
-
-  private void loadProcessImage() {
-    device.processImage.with(
-        tx -> {
-          loadCoils(tx);
-          loadDiscreteInputs(tx);
-          loadHoldingRegisters(tx);
-          loadInputRegisters(tx);
-        });
-  }
-
-  private void loadCoils(Transaction tx) {
-    Path path = device.deviceContext.getDeviceFolderPath().resolve("coils.bin").toAbsolutePath();
-
-    try (FileChannel channel = openFileChannel(path)) {
-      channel.truncate(65535);
-      ByteBuffer coils = ByteBuffer.allocate(65535);
-      readChannelIntoBuffer(coils, channel);
-      coils.flip();
-
-      tx.writeCoils(
-          coilMap -> {
-            for (int i = 0; i < coils.limit(); i++) {
-              if (coils.get(i) != 0) {
-                coilMap.put(i, true);
-              }
-            }
-          });
-    } catch (IOException e) {
-      logger.error("Error reading coils.bin", e);
-    }
-  }
-
-  private void loadDiscreteInputs(Transaction tx) {
-    Path path =
-        device.deviceContext.getDeviceFolderPath().resolve("discreteInputs.bin").toAbsolutePath();
-
-    try (FileChannel channel = openFileChannel(path)) {
-      channel.truncate(65535);
-      ByteBuffer discreteInputs = ByteBuffer.allocate(65535);
-      readChannelIntoBuffer(discreteInputs, channel);
-      discreteInputs.flip();
-
-      tx.writeDiscreteInputs(
-          discreteInputMap -> {
-            for (int i = 0; i < discreteInputs.limit(); i++) {
-              if (discreteInputs.get(i) != 0) {
-                discreteInputMap.put(i, true);
-              }
-            }
-          });
-    } catch (IOException e) {
-      logger.error("Error reading discreteInputs.bin", e);
-    }
-  }
-
-  private void loadHoldingRegisters(Transaction tx) {
-    Path path =
-        device.deviceContext.getDeviceFolderPath().resolve("holdingRegisters.bin").toAbsolutePath();
-
-    try (FileChannel channel = openFileChannel(path)) {
-      int size = 65535 * 2;
-      channel.truncate(size);
-      ByteBuffer holdingRegisters = ByteBuffer.allocate(size);
-      readChannelIntoBuffer(holdingRegisters, channel);
-      holdingRegisters.flip();
-
-      tx.writeHoldingRegisters(
-          holdingRegisterMap -> {
-            for (int i = 0; i < holdingRegisters.limit(); i += 2) {
-              byte high = holdingRegisters.get(i);
-              byte low = holdingRegisters.get(i + 1);
-              if (high != 0 || low != 0) {
-                holdingRegisterMap.put(i / 2, new byte[] {high, low});
-              }
-            }
-          });
-    } catch (IOException e) {
-      logger.error("Error reading holdingRegisters.bin", e);
-    }
-  }
-
-  private void loadInputRegisters(Transaction tx) {
-    Path path =
-        device.deviceContext.getDeviceFolderPath().resolve("inputRegisters.bin").toAbsolutePath();
-
-    try (FileChannel channel = openFileChannel(path)) {
-      int size = 65535 * 2;
-      channel.truncate(size);
-      ByteBuffer inputRegisters = ByteBuffer.allocate(size);
-      readChannelIntoBuffer(inputRegisters, channel);
-      inputRegisters.flip();
-
-      tx.writeInputRegisters(
-          inputRegisterMap -> {
-            for (int i = 0; i < inputRegisters.limit(); i += 2) {
-              byte high = inputRegisters.get(i);
-              byte low = inputRegisters.get(i + 1);
-              if (high != 0 || low != 0) {
-                inputRegisterMap.put(i / 2, new byte[] {high, low});
-              }
-            }
-          });
-    } catch (IOException e) {
-      logger.error("Error reading inputRegisters.bin", e);
-    }
-  }
-
-  /**
-   * Opens a {@link FileChannel} for the specified file path with read, write, and create options.
-   *
-   * @param path the {@link Path} representing the file to be opened.
-   * @return the {@link FileChannel} instance associated with the specified file.
-   * @throws IOException if an I/O error occurs while opening the file.
-   */
-  private static FileChannel openFileChannel(Path path) throws IOException {
-    return FileChannel.open(
-        path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
-  }
-
-  /**
-   * Reads data from the given {@link FileChannel} into the provided {@link ByteBuffer} until the
-   * buffer is fully filled or the end of the file is reached.
-   *
-   * @param buffer the {@link ByteBuffer} into which data will be read.
-   * @param channel the {@link FileChannel} from which data will be read.
-   * @throws IOException if an I/O error occurs during reading from the file channel.
-   */
-  private static void readChannelIntoBuffer(ByteBuffer buffer, FileChannel channel)
-      throws IOException {
-
-    while (buffer.remaining() > 0) {
-      int bytesRead = channel.read(buffer);
-      if (bytesRead == -1) {
-        break; // EOF
-      }
-    }
-  }
-
-  private class ModificationListener implements ProcessImage.ModificationListener {
-
-    private final ExecutionQueue modificationQueue = new ExecutionQueue(OpcUa.SHARED_EXECUTOR);
-
-    @Override
-    public void onCoilsModified(List<CoilModification> modifications) {
-      modificationQueue.submit(
-          () -> {
-            logger.trace("onCoilsModified: {}", modifications);
-
-            Path path =
-                device.deviceContext.getDeviceFolderPath().resolve("coils.bin").toAbsolutePath();
-
-            try (FileChannel channel = openFileChannel(path)) {
-              ByteBuffer buffer = ByteBuffer.allocate(1);
-
-              for (CoilModification m : modifications) {
-                buffer.clear();
-                buffer.put((byte) (m.value() ? 1 : 0));
-                buffer.flip();
-                channel.position(m.address());
-                int bytesWritten = channel.write(buffer);
-                if (bytesWritten != buffer.capacity()) {
-                  throw new IOException(
-                      "failed to write all bytes to coils.bin: wrote %s of %s"
-                          .formatted(bytesWritten, buffer.capacity()));
-                }
-              }
-            } catch (IOException e) {
-              logger.error("Error writing coils.bin", e);
-            }
-          });
-    }
-
-    @Override
-    public void onDiscreteInputsModified(List<DiscreteInputModification> modifications) {
-      modificationQueue.submit(
-          () -> {
-            logger.trace("onDiscreteInputsModified: {}", modifications);
-
-            Path path =
-                device
-                    .deviceContext
-                    .getDeviceFolderPath()
-                    .resolve("discreteInputs.bin")
-                    .toAbsolutePath();
-
-            try (FileChannel channel = openFileChannel(path)) {
-              ByteBuffer buffer = ByteBuffer.allocate(1);
-
-              for (DiscreteInputModification m : modifications) {
-                buffer.clear();
-                buffer.put((byte) (m.value() ? 1 : 0));
-                buffer.flip();
-                channel.position(m.address());
-                int bytesWritten = channel.write(buffer);
-                if (bytesWritten != buffer.capacity()) {
-                  throw new IOException(
-                      "failed to write all bytes to discreteInputs.bin: wrote %s of %s"
-                          .formatted(bytesWritten, buffer.capacity()));
-                }
-              }
-            } catch (IOException e) {
-              logger.error("Error writing discreteInputs.bin", e);
-            }
-          });
-    }
-
-    @Override
-    public void onHoldingRegistersModified(List<HoldingRegisterModification> modifications) {
-      modificationQueue.submit(
-          () -> {
-            logger.trace("onHoldingRegistersModified: {}", modifications);
-
-            Path path =
-                device
-                    .deviceContext
-                    .getDeviceFolderPath()
-                    .resolve("holdingRegisters.bin")
-                    .toAbsolutePath();
-
-            try (FileChannel channel = openFileChannel(path)) {
-              ByteBuffer buffer = ByteBuffer.allocate(2);
-
-              for (HoldingRegisterModification m : modifications) {
-                buffer.clear();
-                buffer.put(m.value()[0]);
-                buffer.put(m.value()[1]);
-                buffer.flip();
-                channel.position(m.address() * 2L);
-                int bytesWritten = channel.write(buffer);
-                if (bytesWritten != buffer.capacity()) {
-                  throw new IOException(
-                      "failed to write all bytes to holdingRegisters.bin: wrote %s of %s"
-                          .formatted(bytesWritten, buffer.capacity()));
-                }
-              }
-            } catch (IOException e) {
-              logger.error("Error writing holdingRegisters.bin", e);
-            }
-          });
-    }
-
-    @Override
-    public void onInputRegistersModified(List<InputRegisterModification> modifications) {
-      modificationQueue.submit(
-          () -> {
-            logger.trace("onInputRegistersModified: {}", modifications);
-
-            Path path =
-                device
-                    .deviceContext
-                    .getDeviceFolderPath()
-                    .resolve("inputRegisters.bin")
-                    .toAbsolutePath();
-
-            try (FileChannel channel = openFileChannel(path)) {
-              ByteBuffer buffer = ByteBuffer.allocate(2);
-
-              for (InputRegisterModification m : modifications) {
-                buffer.clear();
-                buffer.put(m.value()[0]);
-                buffer.put(m.value()[1]);
-                buffer.flip();
-                channel.position(m.address() * 2L);
-                int bytesWritten = channel.write(buffer);
-                if (bytesWritten != buffer.capacity()) {
-                  throw new IOException(
-                      "failed to write all bytes to inputRegisters.bin: wrote %s of %s"
-                          .formatted(bytesWritten, buffer.capacity()));
-                }
-              }
-            } catch (IOException e) {
-              logger.error("Error writing inputRegisters.bin", e);
-            }
-          });
-    }
-  }
-
-  // endregion
-
   private static class PendingRead {
 
     volatile DataValue value;
@@ -740,6 +530,10 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   record ValueRead(ModbusAddress address, String indexRange) {}
 
   record ValueWrite(ModbusAddress address, Variant variant, String indexRange) {}
+
+  private record IndexedValueRead(int index, ValueRead read) {}
+
+  private record IndexedValueWrite(int index, ValueWrite write) {}
 
   private record PendingValueRead(PendingRead pending, ValueRead read) {}
 

@@ -71,6 +71,7 @@ address, so the allow list cannot distinguish those clients from one another.
 
 The syntax used in NodeIds has the following components:
 
+- Unit ID (optional `0` to `255`, followed by `.`)
 - Area (`C`, `DI`, `HR`, `IR`)
 - DataType (`bool`, `int16`, `int32`, `int64`, `uint16`, `uint32`, `uint64`, `float`, `double`,
   `stringN`). The `C` and `DI` areas only support `bool`; register-only data types are rejected.
@@ -92,8 +93,10 @@ Additionally, the DataType can have "modifiers" applied to influence the byte or
 Examples:
 
 - `C0` (coil area, offset 0)
+- `7.C0` (unit ID 7, coil area, offset 0)
 - `DI0` (discrete input area, offset 0)
 - `HR<int16>0` (holding register area, offset 0)
+- `7.HR<int16>0` (unit ID 7, holding register area, offset 0)
 - `HR<int32>0.5` (holding register area, offset 0, bit 5 within a 32-bit signed integer (2
   registers))
 - `HR<string10>0` (holding register area, offset 0, string of length 10 (5 registers))
@@ -101,6 +104,40 @@ Examples:
   little-endian byte order)
 - `IR<float@LH>0` (input register area, offset 0, 32-bit floating point number (2 registers),
   low-high word order)
+
+## Process Image Modes
+
+By default, the driver uses one unified process image. All Modbus unit IDs and OPC UA addresses
+refer to the same data. For example, `HR0`, `0.HR0`, and `7.HR0` all refer to the same holding
+register.
+
+Enable `processImage.separatePerUnitId` to maintain a separate process image for each Modbus unit
+ID. In this mode, an OPC UA address without a unit ID refers to unit 0, so `HR0` and `0.HR0` refer
+to the same register, while `1.HR0` refers to a different register. Every unit ID from 0 through
+255 remains directly accessible from Modbus and OPC UA.
+
+### Browsing separate process images
+
+In separate mode, `browsing.unitIdBrowseRanges` controls which unit folders appear in the OPC UA
+browse tree. Its default value is `0`. Enter comma-separated unit IDs and inclusive ranges, such as
+`0,2,10-15`; duplicate or overlapping entries are displayed once in ascending order. An empty
+value produces no unit folders.
+
+Each selected unit is displayed under a `Unit N` folder containing the normal area folders. For
+example, holding registers for unit 7 are browsed under `Unit 7/HoldingRegisters`, while their
+variable NodeIds retain the direct address syntax such as `7.HR<int16>0`.
+
+The browse ranges only control discovery. A unit-qualified address remains directly accessible
+even when that unit is not included in `browsing.unitIdBrowseRanges`.
+
+### Persistence and mode changes
+
+When persistence is enabled, unified mode continues to use `coils.bin`, `discreteInputs.bin`,
+`holdingRegisters.bin`, and `inputRegisters.bin` in the device data directory. Separate mode uses
+the same filenames under `units/<unitId>/`, including `units/0/`.
+
+The unified and per-unit datasets are independent. Changing modes does not copy or delete process
+image data; changing back restores the data most recently persisted in that mode.
 
 ### Arrays
 
