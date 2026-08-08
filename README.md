@@ -61,9 +61,12 @@ creates, enables, or reserves the underlying Modbus entry.
 
 ```mermaid
 flowchart LR
-    M["Modbus TCP clients"] <--> P["Modbus process image<br/>Coils · Discrete Inputs<br/>Holding Registers · Input Registers"]
+    M["Modbus TCP clients"] <--> P["`Modbus process image
+Coils · Discrete Inputs
+Holding Registers · Input Registers`"]
     P <--> U["Ignition OPC UA device"]
-    U <--> I["Ignition tags and scripts<br/>External OPC UA clients"]
+    U <--> I["`Ignition tags and scripts
+External OPC UA clients`"]
 ```
 
 Each device owns a process image with 65,536 zero-based entries in each Modbus area. Unwritten
