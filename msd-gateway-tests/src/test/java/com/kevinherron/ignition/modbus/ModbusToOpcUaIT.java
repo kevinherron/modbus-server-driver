@@ -158,15 +158,12 @@ public class ModbusToOpcUaIT {
         modbusClient.readHoldingRegisters(42, new ReadHoldingRegistersRequest(address, 1));
     assertArrayEquals(new byte[] {0x5A, 0x3C}, modbusResponse.registers());
 
-    NodeId unqualifiedNodeId =
-        NodeId.parse("ns=1;s=[modbus-server]HR<int16>%d".formatted(address));
-    NodeId prefixedNodeId =
-        NodeId.parse("ns=1;s=[modbus-server]99.HR<int16>%d".formatted(address));
+    NodeId unqualifiedNodeId = NodeId.parse("ns=1;s=[modbus-server]HR<int16>%d".formatted(address));
+    NodeId prefixedNodeId = NodeId.parse("ns=1;s=[modbus-server]99.HR<int16>%d".formatted(address));
 
     DataValue unqualifiedValue =
         opcUaClient.readValue(0.0, TimestampsToReturn.Both, unqualifiedNodeId);
-    DataValue prefixedValue =
-        opcUaClient.readValue(0.0, TimestampsToReturn.Both, prefixedNodeId);
+    DataValue prefixedValue = opcUaClient.readValue(0.0, TimestampsToReturn.Both, prefixedNodeId);
 
     assertEquals(expected, unqualifiedValue.getValue().getValue());
     assertEquals(expected, prefixedValue.getValue().getValue());

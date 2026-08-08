@@ -128,7 +128,9 @@ public final class ModbusByteUtil {
 
     for (int i = 0; i < arrayLength; i++) {
       Array.set(
-          array, i, getScalarValueForBytes(registerBytes, i * bytesPerElement, dataType, modifiers));
+          array,
+          i,
+          getScalarValueForBytes(registerBytes, i * bytesPerElement, dataType, modifiers));
     }
 
     return array;

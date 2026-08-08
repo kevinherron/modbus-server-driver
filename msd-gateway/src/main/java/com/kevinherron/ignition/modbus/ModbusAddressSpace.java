@@ -47,8 +47,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The fragment resolves Modbus address strings as variable nodes, exposes their value and
  * metadata attributes, and supplies monitored values through the OPC UA subscription model. Value
- * operations select images through {@link ProcessImageManager}; unqualified addresses select unit
- * 0 in separate mode, and mixed-unit batches retain their original result order.
+ * operations select images through {@link ProcessImageManager}; unqualified addresses select unit 0
+ * in separate mode, and mixed-unit batches retain their original result order.
  *
  * <p>Its {@link Lifecycle} must be started before use and shut down with the owning device.
  */
@@ -207,8 +207,7 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
             try {
               values.add(
                   new DataValue(
-                      ModbusValueAccess.readValueAttribute(
-                          tx, read.address(), read.indexRange())));
+                      ModbusValueAccess.readValueAttribute(tx, read.address(), read.indexRange())));
             } catch (UaException e) {
               values.add(new DataValue(e.getStatusCode()));
             } catch (RuntimeException e) {
@@ -223,8 +222,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
   /**
    * Reads a batch through the manager-selected process images.
    *
-   * <p>Each image is read in one sequential transaction. Returned values correspond positionally
-   * to {@code reads}, including when the batch contains several unit IDs. A request racing device
+   * <p>Each image is read in one sequential transaction. Returned values correspond positionally to
+   * {@code reads}, including when the batch contains several unit IDs. A request racing device
    * shutdown returns {@code Bad_Shutdown}; a persistence initialization failure returns {@code
    * Bad_InternalError}.
    *
@@ -244,7 +243,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       ValueRead read = reads.get(i);
       try {
         ProcessImage processImage = processImageManager.get(read.address());
-        groups.computeIfAbsent(processImage, ignored -> new ArrayList<>())
+        groups
+            .computeIfAbsent(processImage, ignored -> new ArrayList<>())
             .add(new IndexedValueRead(i, read));
       } catch (IllegalStateException e) {
         values[i] = new DataValue(StatusCodes.Bad_Shutdown);
@@ -451,7 +451,8 @@ public class ModbusAddressSpace implements AddressSpaceFragment, Lifecycle {
       ValueWrite write = writes.get(i);
       try {
         ProcessImage processImage = processImageManager.get(write.address());
-        groups.computeIfAbsent(processImage, ignored -> new ArrayList<>())
+        groups
+            .computeIfAbsent(processImage, ignored -> new ArrayList<>())
             .add(new IndexedValueWrite(i, write));
       } catch (IllegalStateException e) {
         statuses[i] = new StatusCode(StatusCodes.Bad_Shutdown);

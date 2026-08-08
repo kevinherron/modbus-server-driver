@@ -140,8 +140,7 @@ class ModbusServerDeviceConfigTest {
           GSON.fromJson("{\"security\": null}", ModbusServerDeviceConfig.class);
       ModbusServerDeviceConfig nullField =
           GSON.fromJson(
-              "{\"security\": {\"allowedIpAddresses\": null}}",
-              ModbusServerDeviceConfig.class);
+              "{\"security\": {\"allowedIpAddresses\": null}}", ModbusServerDeviceConfig.class);
 
       assertEquals("*", nullObject.security().allowedIpAddresses());
       assertEquals("*", nullField.security().allowedIpAddresses());
@@ -151,8 +150,7 @@ class ModbusServerDeviceConfigTest {
     void explicitBlankSecurityValueIsPreservedForValidation() {
       ModbusServerDeviceConfig config =
           GSON.fromJson(
-              "{\"security\": {\"allowedIpAddresses\": \"  \"}}",
-              ModbusServerDeviceConfig.class);
+              "{\"security\": {\"allowedIpAddresses\": \"  \"}}", ModbusServerDeviceConfig.class);
 
       assertEquals("  ", config.security().allowedIpAddresses());
     }
@@ -163,11 +161,9 @@ class ModbusServerDeviceConfigTest {
           new ModbusServerDeviceConfig(
               ModbusServerDeviceConfig.CURRENT_CONFIG_VERSION,
               new ModbusServerDeviceConfig.Connectivity("127.0.0.1", 1502),
-              new ModbusServerDeviceConfig.Browsing(
-                  "0-9", "10-19", "20-29", "30-39", "0,2"),
+              new ModbusServerDeviceConfig.Browsing("0-9", "10-19", "20-29", "30-39", "0,2"),
               new ModbusServerDeviceConfig.ProcessImageSettings(true, true),
-              new ModbusServerDeviceConfig.Security(
-                  "192.168.1.50, 10.0.0.0/8, 172.16.*"));
+              new ModbusServerDeviceConfig.Security("192.168.1.50, 10.0.0.0/8, 172.16.*"));
 
       assertEquals(expected, roundTrip(expected));
     }
@@ -203,12 +199,12 @@ class ModbusServerDeviceConfigTest {
       JsonObject encoded = EXTENSION_POINT.encode(config(true, "0")).getAsJsonObject();
 
       assertEquals(
-          ModbusServerDeviceConfig.CURRENT_CONFIG_VERSION,
-          encoded.get("configVersion").getAsInt());
+          ModbusServerDeviceConfig.CURRENT_CONFIG_VERSION, encoded.get("configVersion").getAsInt());
       assertFalse(encoded.has("persistence"));
       assertTrue(encoded.getAsJsonObject("processImage").has("persistData"));
       assertTrue(encoded.getAsJsonObject("processImage").has("separatePerUnitId"));
-      assertEquals("*", encoded.getAsJsonObject("security").get("allowedIpAddresses").getAsString());
+      assertEquals(
+          "*", encoded.getAsJsonObject("security").get("allowedIpAddresses").getAsString());
     }
   }
 
@@ -249,8 +245,23 @@ class ModbusServerDeviceConfigTest {
     @ParameterizedTest
     @ValueSource(
         strings = {
-          "-1", "256", "2-1", "1-256", "1-", "-1-2", "1--2", "1,", ",1", "1,,2",
-          "1.0", "one", "1 2", " 1", "1 ", "+1", "999999999999999999999"
+          "-1",
+          "256",
+          "2-1",
+          "1-256",
+          "1-",
+          "-1-2",
+          "1--2",
+          "1,",
+          ",1",
+          "1,,2",
+          "1.0",
+          "one",
+          "1 2",
+          " 1",
+          "1 ",
+          "+1",
+          "999999999999999999999"
         })
     void invalidUnitIdBrowseRangesFailValidation(String ranges) {
       assertThrows(
@@ -278,11 +289,7 @@ class ModbusServerDeviceConfigTest {
   }
 
   private static JsonObject upgrade(JsonElement settings) {
-    return EXTENSION_POINT
-        .getSettingsUpgrader()
-        .orElseThrow()
-        .upgrade(settings)
-        .getAsJsonObject();
+    return EXTENSION_POINT.getSettingsUpgrader().orElseThrow().upgrade(settings).getAsJsonObject();
   }
 
   private static JsonObject parse(String json) {

@@ -18,9 +18,7 @@ import com.inductiveautomation.ignition.gateway.web.nav.FormFieldType;
  * omit optional nested settings; the canonical constructor applies their documented defaults.
  */
 public record ModbusServerDeviceConfig(
-    @Hidden
-        @Description("The version of this settings document.")
-        @DefaultValue("2")
+    @Hidden @Description("The version of this settings document.") @DefaultValue("2")
         int configVersion,
     Connectivity connectivity,
     Browsing browsing,
@@ -120,8 +118,8 @@ public record ModbusServerDeviceConfig(
           @FormField(FormFieldType.CHECKBOX)
           @Label("")
           @Description("Whether to use a separate process image for each unit ID.")
-           @DefaultValue("false")
-           boolean separatePerUnitId) {}
+          @DefaultValue("false")
+          boolean separatePerUnitId) {}
 
   /** Controls which remote addresses may open Modbus TCP connections. */
   public record Security(

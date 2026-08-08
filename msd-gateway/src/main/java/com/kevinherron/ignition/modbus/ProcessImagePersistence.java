@@ -76,15 +76,15 @@ final class ProcessImagePersistence implements AutoCloseable {
    * Restores an image and starts tracking its subsequent modifications.
    *
    * <p>Call this once for an image before making that image available to protocol requests. When
-   * persistence is disabled, this method returns without creating directories, files, or
-   * listeners. It must not be called after {@link #close()}.
+   * persistence is disabled, this method returns without creating directories, files, or listeners.
+   * It must not be called after {@link #close()}.
    *
    * @param unitId the validated unit ID associated with the image.
    * @param processImage the image to restore and observe.
    * @throws IllegalArgumentException if persistence is enabled and {@code unitId} is outside 0
    *     through 255.
-   * @throws UncheckedIOException if the persistence directory cannot be created; the image must
-   *     not be published without its persistent state.
+   * @throws UncheckedIOException if the persistence directory cannot be created; the image must not
+   *     be published without its persistent state.
    */
   void initialize(int unitId, ProcessImage processImage) {
     if (!enabled) {
@@ -97,31 +97,18 @@ final class ProcessImagePersistence implements AutoCloseable {
       Files.createDirectories(directory);
     } catch (IOException e) {
       logFailure("create directory", unitId, "all areas", directory, e);
-      throw new UncheckedIOException(
-          "unable to create persistence directory: " + directory, e);
+      throw new UncheckedIOException("unable to create persistence directory: " + directory, e);
     }
 
     processImage.with(
         tx -> {
           loadBooleans(tx, unitId, "coils", directory.resolve("coils.bin"), true);
           loadBooleans(
-              tx,
-              unitId,
-              "discrete inputs",
-              directory.resolve("discreteInputs.bin"),
-              false);
+              tx, unitId, "discrete inputs", directory.resolve("discreteInputs.bin"), false);
           loadRegisters(
-              tx,
-              unitId,
-              "holding registers",
-              directory.resolve("holdingRegisters.bin"),
-              true);
+              tx, unitId, "holding registers", directory.resolve("holdingRegisters.bin"), true);
           loadRegisters(
-              tx,
-              unitId,
-              "input registers",
-              directory.resolve("inputRegisters.bin"),
-              false);
+              tx, unitId, "input registers", directory.resolve("inputRegisters.bin"), false);
         });
 
     var listener = new PersistenceListener(unitId, directory);
@@ -134,8 +121,7 @@ final class ProcessImagePersistence implements AutoCloseable {
     }
   }
 
-  private void loadBooleans(
-      Transaction tx, int unitId, String area, Path path, boolean coils) {
+  private void loadBooleans(Transaction tx, int unitId, String area, Path path, boolean coils) {
 
     ByteBuffer values = readPersistedFile(unitId, area, path, BOOLEAN_FILE_SIZE);
     if (values == null) {
@@ -325,10 +311,7 @@ final class ProcessImagePersistence implements AutoCloseable {
       submit(
           () ->
               writeBooleans(
-                  unitId,
-                  "discrete inputs",
-                  directory.resolve("discreteInputs.bin"),
-                  writes));
+                  unitId, "discrete inputs", directory.resolve("discreteInputs.bin"), writes));
     }
 
     @Override
@@ -342,10 +325,7 @@ final class ProcessImagePersistence implements AutoCloseable {
       submit(
           () ->
               writeRegisters(
-                  unitId,
-                  "holding registers",
-                  directory.resolve("holdingRegisters.bin"),
-                  writes));
+                  unitId, "holding registers", directory.resolve("holdingRegisters.bin"), writes));
     }
 
     @Override
@@ -359,15 +339,11 @@ final class ProcessImagePersistence implements AutoCloseable {
       submit(
           () ->
               writeRegisters(
-                  unitId,
-                  "input registers",
-                  directory.resolve("inputRegisters.bin"),
-                  writes));
+                  unitId, "input registers", directory.resolve("inputRegisters.bin"), writes));
     }
   }
 
-  private void writeBooleans(
-      int unitId, String area, Path path, List<BooleanWrite> writes) {
+  private void writeBooleans(int unitId, String area, Path path, List<BooleanWrite> writes) {
 
     try (FileChannel channel = openSizedFile(path, BOOLEAN_FILE_SIZE)) {
       for (BooleanWrite write : writes) {
@@ -379,8 +355,7 @@ final class ProcessImagePersistence implements AutoCloseable {
     }
   }
 
-  private void writeRegisters(
-      int unitId, String area, Path path, List<RegisterWrite> writes) {
+  private void writeRegisters(int unitId, String area, Path path, List<RegisterWrite> writes) {
 
     try (FileChannel channel = openSizedFile(path, REGISTER_FILE_SIZE)) {
       for (RegisterWrite write : writes) {
@@ -392,8 +367,7 @@ final class ProcessImagePersistence implements AutoCloseable {
     }
   }
 
-  private record ListenerRegistration(
-      ProcessImage processImage, ModificationListener listener) {}
+  private record ListenerRegistration(ProcessImage processImage, ModificationListener listener) {}
 
   private record BooleanWrite(int address, boolean value) {}
 

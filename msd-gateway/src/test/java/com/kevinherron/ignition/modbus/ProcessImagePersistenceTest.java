@@ -53,8 +53,7 @@ class ProcessImagePersistenceTest {
       Path deviceRoot = temporaryDirectory.resolve("unified-device");
       var image = new ProcessImage();
 
-      try (var persistence =
-          new ProcessImagePersistence(deviceRoot, true, false, Runnable::run)) {
+      try (var persistence = new ProcessImagePersistence(deviceRoot, true, false, Runnable::run)) {
         persistence.initialize(0, image);
         writeAllAreas(image, 10, true, true, new byte[] {0x12, 0x34}, new byte[] {0x56, 0x78});
         writeAllAreas(
@@ -73,11 +72,9 @@ class ProcessImagePersistenceTest {
       assertFalse(Files.exists(deviceRoot.resolve("units")));
 
       var restored = new ProcessImage();
-      try (var persistence =
-          new ProcessImagePersistence(deviceRoot, true, false, Runnable::run)) {
+      try (var persistence = new ProcessImagePersistence(deviceRoot, true, false, Runnable::run)) {
         persistence.initialize(0, restored);
-        assertAllAreas(
-            restored, 10, true, true, new byte[] {0x12, 0x34}, new byte[] {0x56, 0x78});
+        assertAllAreas(restored, 10, true, true, new byte[] {0x12, 0x34}, new byte[] {0x56, 0x78});
         assertAllAreas(
             restored,
             LAST_ADDRESS,
@@ -96,14 +93,11 @@ class ProcessImagePersistenceTest {
       var unit1 = new ProcessImage();
       var unit2 = new ProcessImage();
 
-      try (var persistence =
-          new ProcessImagePersistence(deviceRoot, true, true, Runnable::run)) {
+      try (var persistence = new ProcessImagePersistence(deviceRoot, true, true, Runnable::run)) {
         persistence.initialize(1, unit1);
         persistence.initialize(2, unit2);
-        writeAllAreas(
-            unit1, 20, true, false, new byte[] {0x11, 0x11}, new byte[] {0x22, 0x22});
-        writeAllAreas(
-            unit2, 20, false, true, new byte[] {0x33, 0x33}, new byte[] {0x44, 0x44});
+        writeAllAreas(unit1, 20, true, false, new byte[] {0x11, 0x11}, new byte[] {0x22, 0x22});
+        writeAllAreas(unit2, 20, false, true, new byte[] {0x33, 0x33}, new byte[] {0x44, 0x44});
       }
 
       assertTrue(Files.exists(deviceRoot.resolve("units/1/coils.bin")));
@@ -112,24 +106,13 @@ class ProcessImagePersistenceTest {
 
       var restoredUnit1 = new ProcessImage();
       var restoredUnit2 = new ProcessImage();
-      try (var persistence =
-          new ProcessImagePersistence(deviceRoot, true, true, Runnable::run)) {
+      try (var persistence = new ProcessImagePersistence(deviceRoot, true, true, Runnable::run)) {
         persistence.initialize(1, restoredUnit1);
         persistence.initialize(2, restoredUnit2);
         assertAllAreas(
-            restoredUnit1,
-            20,
-            true,
-            false,
-            new byte[] {0x11, 0x11},
-            new byte[] {0x22, 0x22});
+            restoredUnit1, 20, true, false, new byte[] {0x11, 0x11}, new byte[] {0x22, 0x22});
         assertAllAreas(
-            restoredUnit2,
-            20,
-            false,
-            true,
-            new byte[] {0x33, 0x33},
-            new byte[] {0x44, 0x44});
+            restoredUnit2, 20, false, true, new byte[] {0x33, 0x33}, new byte[] {0x44, 0x44});
       }
     }
 
@@ -142,19 +125,14 @@ class ProcessImagePersistenceTest {
       writeHoldingRegister(deviceRoot, false, 0, 0, new byte[] {0x11, 0x11});
       writeHoldingRegister(deviceRoot, true, 0, 0, new byte[] {0x22, 0x22});
 
-      assertArrayEquals(
-          new byte[] {0x11, 0x11}, readHoldingRegister(deviceRoot, false, 0, 0));
-      assertArrayEquals(
-          new byte[] {0x22, 0x22}, readHoldingRegister(deviceRoot, true, 0, 0));
+      assertArrayEquals(new byte[] {0x11, 0x11}, readHoldingRegister(deviceRoot, false, 0, 0));
+      assertArrayEquals(new byte[] {0x22, 0x22}, readHoldingRegister(deviceRoot, true, 0, 0));
 
       writeHoldingRegister(deviceRoot, false, 0, 1, new byte[] {0x33, 0x33});
 
-      assertArrayEquals(
-          new byte[] {0x22, 0x22}, readHoldingRegister(deviceRoot, true, 0, 0));
-      assertArrayEquals(
-          new byte[] {0x11, 0x11}, readHoldingRegister(deviceRoot, false, 0, 0));
-      assertArrayEquals(
-          new byte[] {0x33, 0x33}, readHoldingRegister(deviceRoot, false, 0, 1));
+      assertArrayEquals(new byte[] {0x22, 0x22}, readHoldingRegister(deviceRoot, true, 0, 0));
+      assertArrayEquals(new byte[] {0x11, 0x11}, readHoldingRegister(deviceRoot, false, 0, 0));
+      assertArrayEquals(new byte[] {0x33, 0x33}, readHoldingRegister(deviceRoot, false, 0, 1));
     }
   }
 
@@ -182,8 +160,7 @@ class ProcessImagePersistenceTest {
           "the persistence executor must be blocked before a write is queued");
 
       var image = new ProcessImage();
-      var persistence =
-          new ProcessImagePersistence(deviceRoot, true, false, persistenceExecutor);
+      var persistence = new ProcessImagePersistence(deviceRoot, true, false, persistenceExecutor);
 
       try {
         persistence.initialize(0, image);
@@ -208,8 +185,7 @@ class ProcessImagePersistenceTest {
 
         writeHoldingRegister(image, 8, new byte[] {0x56, 0x78});
 
-        assertArrayEquals(
-            new byte[] {0x12, 0x34}, readHoldingRegister(deviceRoot, false, 0, 8));
+        assertArrayEquals(new byte[] {0x12, 0x34}, readHoldingRegister(deviceRoot, false, 0, 8));
       } finally {
         releaseBlocker.countDown();
         persistence.close();
@@ -220,16 +196,11 @@ class ProcessImagePersistenceTest {
   }
 
   private static void writeHoldingRegister(
-      Path deviceRoot,
-      boolean separatePerUnitId,
-      int unitId,
-      int address,
-      byte[] value) {
+      Path deviceRoot, boolean separatePerUnitId, int unitId, int address, byte[] value) {
 
     var image = new ProcessImage();
     try (var persistence =
-        new ProcessImagePersistence(
-            deviceRoot, true, separatePerUnitId, Runnable::run)) {
+        new ProcessImagePersistence(deviceRoot, true, separatePerUnitId, Runnable::run)) {
       persistence.initialize(unitId, image);
       writeHoldingRegister(image, address, value);
     }
@@ -244,8 +215,7 @@ class ProcessImagePersistenceTest {
 
     var image = new ProcessImage();
     try (var persistence =
-        new ProcessImagePersistence(
-            deviceRoot, true, separatePerUnitId, Runnable::run)) {
+        new ProcessImagePersistence(deviceRoot, true, separatePerUnitId, Runnable::run)) {
       persistence.initialize(unitId, image);
       return holdingRegister(image, address);
     }
@@ -280,22 +250,18 @@ class ProcessImagePersistenceTest {
         tx -> {
           assertEquals(coil, tx.readCoils(map -> map.getOrDefault(address, false)));
           assertEquals(
-              discreteInput,
-              tx.readDiscreteInputs(map -> map.getOrDefault(address, false)));
+              discreteInput, tx.readDiscreteInputs(map -> map.getOrDefault(address, false)));
           assertArrayEquals(
               holdingRegister,
               tx.readHoldingRegisters(map -> map.getOrDefault(address, new byte[2])));
           assertArrayEquals(
-              inputRegister,
-              tx.readInputRegisters(map -> map.getOrDefault(address, new byte[2])));
+              inputRegister, tx.readInputRegisters(map -> map.getOrDefault(address, new byte[2])));
         });
   }
 
   private static byte[] holdingRegister(ProcessImage image, int address) {
     return image.get(
-        tx ->
-            tx.readHoldingRegisters(
-                map -> map.getOrDefault(address, new byte[2]).clone()));
+        tx -> tx.readHoldingRegisters(map -> map.getOrDefault(address, new byte[2]).clone()));
   }
 
   private static void await(CountDownLatch latch) {

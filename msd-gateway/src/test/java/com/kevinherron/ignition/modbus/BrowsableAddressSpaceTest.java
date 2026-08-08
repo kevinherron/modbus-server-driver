@@ -31,8 +31,7 @@ class BrowsableAddressSpaceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(
-        strings = {"-1", "256", "2-1", "1,,2", "1, 2", "one", "1-2-3", " ", "2147483648"})
+    @ValueSource(strings = {"-1", "256", "2-1", "1,,2", "1, 2", "one", "1-2-3", " ", "2147483648"})
     void invalidUnitIdRangesFailExpansion(String ranges) {
       assertThrows(
           IllegalArgumentException.class,
@@ -43,8 +42,7 @@ class BrowsableAddressSpaceTest {
     @Test
     void nullUnitIdRangesFailExpansion() {
       assertThrows(
-          IllegalArgumentException.class,
-          () -> BrowsableAddressSpace.expandUnitIdRanges(null));
+          IllegalArgumentException.class, () -> BrowsableAddressSpace.expandUnitIdRanges(null));
     }
   }
 
@@ -76,20 +74,12 @@ class BrowsableAddressSpaceTest {
               folder("Unit0", "", "Unit0", "Unit 0"),
               folder("Unit0.Coils", "Unit0", "Coils", "Coils"),
               folder("Unit0.DiscreteInputs", "Unit0", "DiscreteInputs", "DiscreteInputs"),
-              folder(
-                  "Unit0.HoldingRegisters",
-                  "Unit0",
-                  "HoldingRegisters",
-                  "HoldingRegisters"),
+              folder("Unit0.HoldingRegisters", "Unit0", "HoldingRegisters", "HoldingRegisters"),
               folder("Unit0.InputRegisters", "Unit0", "InputRegisters", "InputRegisters"),
               folder("Unit2", "", "Unit2", "Unit 2"),
               folder("Unit2.Coils", "Unit2", "Coils", "Coils"),
               folder("Unit2.DiscreteInputs", "Unit2", "DiscreteInputs", "DiscreteInputs"),
-              folder(
-                  "Unit2.HoldingRegisters",
-                  "Unit2",
-                  "HoldingRegisters",
-                  "HoldingRegisters"),
+              folder("Unit2.HoldingRegisters", "Unit2", "HoldingRegisters", "HoldingRegisters"),
               folder("Unit2.InputRegisters", "Unit2", "InputRegisters", "InputRegisters")),
           definitions);
     }
@@ -108,11 +98,9 @@ class BrowsableAddressSpaceTest {
     void unifiedAreaBrowseIdentifiersRemainUnqualified() {
       List<Range> ranges = List.of(new Range(0, 1));
 
+      assertEquals(List.of("C0", "C1"), BrowsableAddressSpace.browseIdentifiers("C", ranges, null));
       assertEquals(
-          List.of("C0", "C1"), BrowsableAddressSpace.browseIdentifiers("C", ranges, null));
-      assertEquals(
-          List.of("_HR0_", "_HR1_"),
-          BrowsableAddressSpace.browseIdentifiers("HR", ranges, null));
+          List.of("_HR0_", "_HR1_"), BrowsableAddressSpace.browseIdentifiers("HR", ranges, null));
     }
 
     // Separate-mode leaves remain directly addressable while register grouping nodes live under
@@ -122,8 +110,7 @@ class BrowsableAddressSpaceTest {
       List<Range> ranges = List.of(new Range(5, 6));
 
       assertEquals(
-          List.of("7.C5", "7.C6"),
-          BrowsableAddressSpace.browseIdentifiers("C", ranges, 7));
+          List.of("7.C5", "7.C6"), BrowsableAddressSpace.browseIdentifiers("C", ranges, 7));
       assertEquals(
           List.of("Unit7._HR5_", "Unit7._HR6_"),
           BrowsableAddressSpace.browseIdentifiers("HR", ranges, 7));
@@ -151,16 +138,14 @@ class BrowsableAddressSpaceTest {
           "Unit255.InputRegisters",
           BrowsableAddressSpace.areaFolderIdentifier(255, "InputRegisters"));
       assertEquals(
-          "Unit255._IR65535_",
-          BrowsableAddressSpace.registerFolderIdentifier(255, "IR", 65535));
+          "Unit255._IR65535_", BrowsableAddressSpace.registerFolderIdentifier(255, "IR", 65535));
       assertEquals("255.DI0", BrowsableAddressSpace.variableIdentifier(255, "DI0"));
     }
 
     @Test
     void identifierHelpersRejectUnitIdsOutsideModbusBounds() {
       assertThrows(
-          IllegalArgumentException.class,
-          () -> BrowsableAddressSpace.unitFolderIdentifier(-1));
+          IllegalArgumentException.class, () -> BrowsableAddressSpace.unitFolderIdentifier(-1));
       assertThrows(
           IllegalArgumentException.class,
           () -> BrowsableAddressSpace.variableIdentifier(256, "C0"));

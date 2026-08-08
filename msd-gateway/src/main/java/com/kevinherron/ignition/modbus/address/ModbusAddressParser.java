@@ -164,15 +164,13 @@ public class ModbusAddressParser {
 
     long extent;
     try {
-      extent =
-          Math.addExact(offset, Math.multiplyExact(elementCount, entriesPerElement));
+      extent = Math.addExact(offset, Math.multiplyExact(elementCount, entriesPerElement));
     } catch (ArithmeticException e) {
       throw new Exception("address extent exceeds the Modbus address space", e);
     }
 
     if (extent > ADDRESS_SPACE_SIZE) {
-      throw new Exception(
-          "address extent %d exceeds the Modbus address space".formatted(extent));
+      throw new Exception("address extent %d exceeds the Modbus address space".formatted(extent));
     }
   }
 
@@ -342,9 +340,7 @@ public class ModbusAddressParser {
 
       boolean conflictsWithExisting =
           set.stream()
-              .anyMatch(
-                  existing ->
-                      existing.getClass() == m.getClass() && !existing.equals(m));
+              .anyMatch(existing -> existing.getClass() == m.getClass() && !existing.equals(m));
       if (conflictsWithExisting) {
         return Optional.empty();
       }

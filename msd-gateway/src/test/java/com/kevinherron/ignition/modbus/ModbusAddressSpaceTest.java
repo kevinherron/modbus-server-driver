@@ -104,15 +104,13 @@ class ModbusAddressSpaceTest {
 
   @Test
   void getRegisterWriteBytesRejectsShortArray() throws Exception {
-    assertRegisterWriteTypeMismatch(
-        "HR<int16[10]>0", new Short[] {1, 2, 3, 4, 5});
+    assertRegisterWriteTypeMismatch("HR<int16[10]>0", new Short[] {1, 2, 3, 4, 5});
   }
 
   @Test
   void getRegisterWriteBytesRejectsWrongMatrixShape() throws Exception {
     assertRegisterWriteTypeMismatch(
-        "HR<int16[2][2]>0",
-        new Matrix(new Short[] {1, 2, 3, 4, 5, 6}, new int[] {2, 3}));
+        "HR<int16[2][2]>0", new Matrix(new Short[] {1, 2, 3, 4, 5, 6}, new int[] {2, 3}));
   }
 
   @Test
@@ -129,8 +127,7 @@ class ModbusAddressSpaceTest {
   void registerArrayWriteReadBytesRoundTrip() throws Exception {
     ModbusAddress address = ModbusAddressParser.parse("HR<int16[10]>0");
     Short[] value = new Short[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    byte[] writtenBytes =
-        ModbusValueAccess.getRegisterWriteBytes(address, new Variant(value));
+    byte[] writtenBytes = ModbusValueAccess.getRegisterWriteBytes(address, new Variant(value));
     Map<Integer, byte[]> registers = new java.util.HashMap<>();
 
     for (int i = 0; i < writtenBytes.length / 2; i++) {
@@ -145,8 +142,7 @@ class ModbusAddressSpaceTest {
     ArrayAddress address = arrayAddress("C<bool[2][2]>0");
 
     Object value =
-        ModbusValueAccess.shapeBooleanArray(
-            address, new boolean[] {true, false, false, true});
+        ModbusValueAccess.shapeBooleanArray(address, new boolean[] {true, false, false, true});
 
     Matrix matrix = assertInstanceOf(Matrix.class, value);
     assertArrayEquals(new int[] {2, 2}, matrix.getDimensions());
@@ -166,8 +162,7 @@ class ModbusAddressSpaceTest {
     Matrix matrix = assertInstanceOf(Matrix.class, value);
     assertArrayEquals(new int[] {2, 3}, matrix.getDimensions());
     assertArrayEquals(
-        new Boolean[] {true, false, true, false, true, false},
-        (Boolean[]) matrix.getElements());
+        new Boolean[] {true, false, true, false, true, false}, (Boolean[]) matrix.getElements());
     assertEquals(Boolean.class, matrix.getElementType().orElseThrow());
     assertEquals(OpcUaDataType.Boolean, matrix.getDataType().orElseThrow());
   }
@@ -176,11 +171,9 @@ class ModbusAddressSpaceTest {
   void shapeOneDimensionalBooleanArrayAsBoxedArray() throws Exception {
     ArrayAddress address = arrayAddress("C<bool[3]>0");
 
-    Object value =
-        ModbusValueAccess.shapeBooleanArray(address, new boolean[] {true, false, true});
+    Object value = ModbusValueAccess.shapeBooleanArray(address, new boolean[] {true, false, true});
 
-    assertArrayEquals(
-        new Boolean[] {true, false, true}, assertInstanceOf(Boolean[].class, value));
+    assertArrayEquals(new Boolean[] {true, false, true}, assertInstanceOf(Boolean[].class, value));
   }
 
   @Test
@@ -189,8 +182,7 @@ class ModbusAddressSpaceTest {
     Matrix matrix =
         assertInstanceOf(
             Matrix.class,
-            ModbusValueAccess.shapeBooleanArray(
-                address, new boolean[] {true, false, false, true}));
+            ModbusValueAccess.shapeBooleanArray(address, new boolean[] {true, false, false, true}));
 
     Variant valueRank = ModbusAddressSpace.readAddressAttribute(AttributeId.ValueRank, address);
     Variant arrayDimensions =
@@ -206,8 +198,7 @@ class ModbusAddressSpaceTest {
   void shapedCoilMatrixCanBeWrittenBackToSameAddress() throws Exception {
     ArrayAddress address = arrayAddress("C<bool[2][2]>0");
     Object value =
-        ModbusValueAccess.shapeBooleanArray(
-            address, new boolean[] {true, false, false, true});
+        ModbusValueAccess.shapeBooleanArray(address, new boolean[] {true, false, false, true});
     Map<Integer, Boolean> booleans = new HashMap<>();
 
     ModbusValueAccess.writeBooleanArray(booleans, address, new Variant(value));
@@ -270,28 +261,22 @@ class ModbusAddressSpaceTest {
 
     assertArrayEquals(
         new Short[] {2, 3, 4},
-        (Short[])
-            ModbusAddressSpace.readValueAttribute(processImage, address, "2:4").getValue());
+        (Short[]) ModbusAddressSpace.readValueAttribute(processImage, address, "2:4").getValue());
     assertArrayEquals(
         new Short[] {0},
-        (Short[])
-            ModbusAddressSpace.readValueAttribute(processImage, address, "0").getValue());
+        (Short[]) ModbusAddressSpace.readValueAttribute(processImage, address, "0").getValue());
   }
 
   @Test
   void readHoldingRegisterSubmatrix() throws Exception {
     ProcessImage processImage = new ProcessImage();
     ModbusAddress address = ModbusAddressParser.parse("HR<int16[4][4]>0");
-    writeValue(
-        processImage,
-        address,
-        new Matrix(shorts(0, 16), new int[] {4, 4}));
+    writeValue(processImage, address, new Matrix(shorts(0, 16), new int[] {4, 4}));
 
     Matrix matrix =
         assertInstanceOf(
             Matrix.class,
-            ModbusAddressSpace.readValueAttribute(processImage, address, "1:2,0:1")
-                .getValue());
+            ModbusAddressSpace.readValueAttribute(processImage, address, "1:2,0:1").getValue());
 
     assertArrayEquals(new int[] {2, 2}, matrix.getDimensions());
     assertArrayEquals(new Short[] {4, 5, 8, 9}, (Short[]) matrix.getElements());
@@ -302,14 +287,11 @@ class ModbusAddressSpaceTest {
     ProcessImage processImage = new ProcessImage();
     ModbusAddress address = ModbusAddressParser.parse("C<bool[8]>0");
     writeValue(
-        processImage,
-        address,
-        new Boolean[] {false, true, false, true, true, false, true, false});
+        processImage, address, new Boolean[] {false, true, false, true, true, false, true, false});
 
     assertArrayEquals(
         new Boolean[] {true, true, false},
-        (Boolean[])
-            ModbusAddressSpace.readValueAttribute(processImage, address, "3:5").getValue());
+        (Boolean[]) ModbusAddressSpace.readValueAttribute(processImage, address, "3:5").getValue());
   }
 
   @Test
@@ -323,18 +305,14 @@ class ModbusAddressSpaceTest {
 
     assertArrayEquals(
         new Short[] {0, 1, 20, 30, 40, 5, 6, 7, 8, 9},
-        (Short[])
-            ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+        (Short[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
   }
 
   @Test
   void rangedHoldingRegisterMatrixWritePreservesUnselectedCells() throws Exception {
     ProcessImage processImage = new ProcessImage();
     ModbusAddress address = ModbusAddressParser.parse("HR<int16[4][4]>0");
-    writeValue(
-        processImage,
-        address,
-        new Matrix(shorts(0, 16), new int[] {4, 4}));
+    writeValue(processImage, address, new Matrix(shorts(0, 16), new int[] {4, 4}));
 
     ModbusAddressSpace.writeValueAttribute(
         processImage,
@@ -361,8 +339,7 @@ class ModbusAddressSpaceTest {
 
     assertArrayEquals(
         new Short[] {0, 0, 7, 8, 0, 0},
-        (Short[])
-            ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+        (Short[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
   }
 
   @Test
@@ -404,8 +381,7 @@ class ModbusAddressSpaceTest {
         ModbusAddressSpace.writeValueAttributes(
             processImage,
             List.of(
-                new ModbusAddressSpace.ValueWrite(
-                    register, new Variant((short) 99), "1::2"),
+                new ModbusAddressSpace.ValueWrite(register, new Variant((short) 99), "1::2"),
                 new ModbusAddressSpace.ValueWrite(coil, new Variant(false), "1::2"),
                 new ModbusAddressSpace.ValueWrite(register, new Variant((short) 99), "1:"),
                 new ModbusAddressSpace.ValueWrite(coil, new Variant(false), "1,")));
@@ -415,10 +391,8 @@ class ModbusAddressSpaceTest {
     assertStatus(StatusCodes.Bad_IndexRangeInvalid, statuses.get(2));
     assertStatus(StatusCodes.Bad_IndexRangeInvalid, statuses.get(3));
     assertEquals(
-        (short) 7,
-        ModbusAddressSpace.readValueAttribute(processImage, register, null).getValue());
-    assertEquals(
-        true, ModbusAddressSpace.readValueAttribute(processImage, coil, null).getValue());
+        (short) 7, ModbusAddressSpace.readValueAttribute(processImage, register, null).getValue());
+    assertEquals(true, ModbusAddressSpace.readValueAttribute(processImage, coil, null).getValue());
   }
 
   @Test
@@ -438,8 +412,7 @@ class ModbusAddressSpaceTest {
     assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, statuses.get(0));
     assertArrayEquals(
         initial,
-        (Short[])
-            ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+        (Short[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
   }
 
   @Test
@@ -488,8 +461,7 @@ class ModbusAddressSpaceTest {
     assertStatus(StatusCodes.Bad_TypeMismatch, status);
     assertArrayEquals(
         initial,
-        (Short[])
-            ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
+        (Short[]) ModbusAddressSpace.readValueAttribute(processImage, address, null).getValue());
   }
 
   @Test
@@ -501,8 +473,7 @@ class ModbusAddressSpaceTest {
     StatusCode status =
         ModbusAddressSpace.writeValueAttributes(
                 processImage,
-                List.of(
-                    new ModbusAddressSpace.ValueWrite(address, new Variant("NO"), "0:4")))
+                List.of(new ModbusAddressSpace.ValueWrite(address, new Variant("NO"), "0:4")))
             .get(0);
 
     assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, status);
@@ -615,9 +586,7 @@ class ModbusAddressSpaceTest {
     StatusCode status =
         ModbusAddressSpace.writeValueAttributes(
                 processImage,
-                List.of(
-                    new ModbusAddressSpace.ValueWrite(
-                        address, new Variant("ÉÉÉÉÉ"), "0:4")))
+                List.of(new ModbusAddressSpace.ValueWrite(address, new Variant("ÉÉÉÉÉ"), "0:4")))
             .get(0);
 
     assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, status);
@@ -785,9 +754,7 @@ class ModbusAddressSpaceTest {
                     valueRead("1.HR<int16>0", null),
                     valueRead("255.HR<int16>0", null)));
 
-        assertEquals(
-            List.of((short) 10, (short) 10, (short) 20, (short) 30),
-            scalarValues(values));
+        assertEquals(List.of((short) 10, (short) 10, (short) 20, (short) 30), scalarValues(values));
       }
     }
 
@@ -842,9 +809,7 @@ class ModbusAddressSpaceTest {
             scalarValues(
                 ModbusAddressSpace.readValueAttributes(
                     manager,
-                    List.of(
-                        valueRead("1.HR<int16>0", null),
-                        valueRead("2.HR<int16>0", null)))));
+                    List.of(valueRead("1.HR<int16>0", null), valueRead("2.HR<int16>0", null)))));
       }
     }
 
@@ -869,10 +834,7 @@ class ModbusAddressSpaceTest {
 
         List<DataValue> values =
             ModbusAddressSpace.readValueAttributes(
-                manager,
-                List.of(
-                    valueRead("1.HR<int16>0", null),
-                    valueRead("2.HR<int16>0", null)));
+                manager, List.of(valueRead("1.HR<int16>0", null), valueRead("2.HR<int16>0", null)));
 
         assertStatus(StatusCodes.Bad_InternalError, values.get(0).getStatusCode());
         assertEquals((short) 22, values.get(1).getValue().getValue());
@@ -888,8 +850,7 @@ class ModbusAddressSpaceTest {
           ModbusAddressSpace.writeValueAttributes(
               manager, List.of(valueWrite("1.HR<int16>0", (short) 11, null)));
       List<DataValue> values =
-          ModbusAddressSpace.readValueAttributes(
-              manager, List.of(valueRead("1.HR<int16>0", null)));
+          ModbusAddressSpace.readValueAttributes(manager, List.of(valueRead("1.HR<int16>0", null)));
 
       assertStatus(StatusCodes.Bad_Shutdown, statuses.get(0));
       assertStatus(StatusCodes.Bad_Shutdown, values.get(0).getStatusCode());
@@ -902,14 +863,12 @@ class ModbusAddressSpaceTest {
       try (ProcessImageManager manager = processImageManager(true)) {
         List<StatusCode> initialStatuses =
             ModbusAddressSpace.writeValueAttributes(
-                manager,
-                List.of(valueWrite("1.HR<int16[4]>10", new Short[] {1, 2, 3, 4}, null)));
+                manager, List.of(valueWrite("1.HR<int16[4]>10", new Short[] {1, 2, 3, 4}, null)));
         assertAllGood(1, initialStatuses);
 
         List<StatusCode> statuses =
             ModbusAddressSpace.writeValueAttributes(
-                manager,
-                List.of(valueWrite("1.HR<int16[4]>10", new Short[] {8, 9}, "1:2")));
+                manager, List.of(valueWrite("1.HR<int16[4]>10", new Short[] {8, 9}, "1:2")));
 
         assertAllGood(1, statuses);
         Object value =
@@ -950,8 +909,8 @@ class ModbusAddressSpaceTest {
         () -> "expected all Good statuses but got " + statuses);
   }
 
-  private static void writeValue(
-      ProcessImage processImage, ModbusAddress address, Object value) throws UaException {
+  private static void writeValue(ProcessImage processImage, ModbusAddress address, Object value)
+      throws UaException {
     ModbusAddressSpace.writeValueAttribute(processImage, address, new Variant(value), null);
   }
 
@@ -989,17 +948,12 @@ class ModbusAddressSpaceTest {
         Arguments.of(
             "HR<int16[10]>0",
             new Short[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-            new byte[] {
-              0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10
-            }),
+            new byte[] {0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10}),
         Arguments.of(
             "HR<float[4]>0",
             new Float[] {1.0f, -2.5f, 0.0f, 3.75f},
             new byte[] {
-              0x3F, (byte) 0x80, 0, 0,
-              (byte) 0xC0, 0x20, 0, 0,
-              0, 0, 0, 0,
-              0x40, 0x70, 0, 0
+              0x3F, (byte) 0x80, 0, 0, (byte) 0xC0, 0x20, 0, 0, 0, 0, 0, 0, 0x40, 0x70, 0, 0
             }),
         Arguments.of(
             "IR<uint16[3]>0",

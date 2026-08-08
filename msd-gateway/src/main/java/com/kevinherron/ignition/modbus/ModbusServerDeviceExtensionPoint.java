@@ -16,8 +16,8 @@ import java.util.Optional;
  * Registers the Modbus server device type with Ignition and defines its configuration boundary.
  *
  * <p>The extension point supplies the web configuration schema, validates settings—including
- * connection admission—before device creation, and creates {@link ModbusServerDevice} instances
- * for the Ignition device lifecycle.
+ * connection admission—before device creation, and creates {@link ModbusServerDevice} instances for
+ * the Ignition device lifecycle.
  */
 public class ModbusServerDeviceExtensionPoint
     extends DeviceExtensionPoint<ModbusServerDeviceConfig> {
@@ -109,8 +109,8 @@ public class ModbusServerDeviceExtensionPoint
   /**
    * Validates the grammar and bounds of unit IDs selected for OPC UA browsing.
    *
-   * <p>An empty value is valid and selects no unit folders. Entries are comma-separated unit IDs
-   * or inclusive ranges, and every bound must be between 0 and 255. This setting affects browsing
+   * <p>An empty value is valid and selects no unit folders. Entries are comma-separated unit IDs or
+   * inclusive ranges, and every bound must be between 0 and 255. This setting affects browsing
    * only; it is not a protocol allowlist.
    *
    * @param ranges the unit ID browse-range expression.

@@ -79,8 +79,7 @@ class ModbusValueAccessTest {
 
       Matrix value =
           assertInstanceOf(
-              Matrix.class,
-              read(processImage, "HR<int32[3][2]>100", "1,0:1").getValue());
+              Matrix.class, read(processImage, "HR<int32[3][2]>100", "1,0:1").getValue());
 
       assertArrayEquals(new int[] {1, 2}, value.getDimensions());
       assertArrayEquals(new Integer[] {20, 21}, (Integer[]) value.getElements());
@@ -106,8 +105,7 @@ class ModbusValueAccessTest {
             assertEquals(Map.of(10, true), tx.readCoils(Map::copyOf));
             assertEquals(Map.of(10, false), tx.readDiscreteInputs(Map::copyOf));
             assertArrayEquals(
-                new byte[] {0, 11},
-                tx.readHoldingRegisters(registers -> registers.get(10)));
+                new byte[] {0, 11}, tx.readHoldingRegisters(registers -> registers.get(10)));
             assertArrayEquals(
                 new byte[] {0, 22}, tx.readInputRegisters(registers -> registers.get(10)));
           });
@@ -186,10 +184,8 @@ class ModbusValueAccessTest {
         Arguments.of("Int16", "HR<int16>0.15", "HR<int16>0", (short) 1, (short) 0x8001),
         Arguments.of("UInt16", "HR<uint16>10.15", "HR<uint16>10", ushort(1), ushort(0x8001)),
         Arguments.of("Int32", "HR<int32>20.31", "HR<int32>20", 1, 0x8000_0001),
-        Arguments.of(
-            "UInt32", "HR<uint32>30.31", "HR<uint32>30", uint(1), uint(0x8000_0001L)),
-        Arguments.of(
-            "Int64", "HR<int64>40.63", "HR<int64>40", 1L, Long.MIN_VALUE | 1L),
+        Arguments.of("UInt32", "HR<uint32>30.31", "HR<uint32>30", uint(1), uint(0x8000_0001L)),
+        Arguments.of("Int64", "HR<int64>40.63", "HR<int64>40", 1L, Long.MIN_VALUE | 1L),
         Arguments.of(
             "UInt64", "HR<uint64>50.63", "HR<uint64>50", ulong(1), ulong(Long.MIN_VALUE | 1L)));
   }
@@ -236,11 +232,9 @@ class ModbusValueAccessTest {
                   for (int i = 0; i < values.length; i++) {
                     int value = values[i];
                     registers.put(
-                        offset + i * 2,
-                        new byte[] {(byte) (value >>> 24), (byte) (value >>> 16)});
+                        offset + i * 2, new byte[] {(byte) (value >>> 24), (byte) (value >>> 16)});
                     registers.put(
-                        offset + i * 2 + 1,
-                        new byte[] {(byte) (value >>> 8), (byte) value});
+                        offset + i * 2 + 1, new byte[] {(byte) (value >>> 8), (byte) value});
                   }
                 }));
   }

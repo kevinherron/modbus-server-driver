@@ -172,10 +172,7 @@ class ProcessImageManagerTest {
 
   private ProcessImageManager manager(boolean separatePerUnitId) {
     return new ProcessImageManager(
-        separatePerUnitId,
-        false,
-        temporaryDirectory.resolve("device"),
-        Runnable::run);
+        separatePerUnitId, false, temporaryDirectory.resolve("device"), Runnable::run);
   }
 
   private static ReadWriteModbusServices services(ProcessImageManager manager) {

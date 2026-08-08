@@ -156,8 +156,8 @@ public class ArrayModbusToOpcUaIT {
     // changing its Java element type or declared shape.
     @ParameterizedTest(name = "{0}")
     @MethodSource("registerArrayCases")
-    void registerArrayValuesRoundTripForEverySupportedAreaTypeAndRank(
-        RegisterArrayCase testCase) throws Exception {
+    void registerArrayValuesRoundTripForEverySupportedAreaTypeAndRank(RegisterArrayCase testCase)
+        throws Exception {
 
       NodeId nodeId = nodeId(testCase.address());
 
@@ -175,8 +175,7 @@ public class ArrayModbusToOpcUaIT {
     @MethodSource("arrayMetadataCases")
     void arrayNodesExposeTheirDeclaredMetadata(ArrayMetadataCase testCase) throws Exception {
 
-      assertArrayMetadata(
-          nodeId(testCase.address()), testCase.dataType(), testCase.dimensions());
+      assertArrayMetadata(nodeId(testCase.address()), testCase.dataType(), testCase.dimensions());
     }
 
     // Boolean arrays use a bit-oriented Modbus representation but must retain their OPC UA rank
@@ -279,13 +278,11 @@ public class ArrayModbusToOpcUaIT {
       Boolean[] expected = {true, false, true, true, false, true};
 
       modbusClient.writeMultipleCoils(
-          0,
-          new WriteMultipleCoilsRequest(ARRAY_OFFSET, expected.length, packBooleans(expected)));
+          0, new WriteMultipleCoilsRequest(ARRAY_OFFSET, expected.length, packBooleans(expected)));
 
       assertArrayEquals(
           expected,
-          (Boolean[])
-              readValue(nodeId("C<bool[6]>" + ARRAY_OFFSET)).getValue().getValue());
+          (Boolean[]) readValue(nodeId("C<bool[6]>" + ARRAY_OFFSET)).getValue().getValue());
     }
 
     // A direct Modbus register write must be decoded into the declared OPC UA scalar element type.
@@ -294,14 +291,11 @@ public class ArrayModbusToOpcUaIT {
       byte[] registers = hex("1234 FEDC 0001");
 
       modbusClient.writeMultipleRegisters(
-          0,
-          new WriteMultipleRegistersRequest(
-              ARRAY_OFFSET, registers.length / 2, registers));
+          0, new WriteMultipleRegistersRequest(ARRAY_OFFSET, registers.length / 2, registers));
 
       assertArrayEquals(
           new Short[] {(short) 0x1234, (short) 0xFEDC, (short) 1},
-          (Short[])
-              readValue(nodeId("HR<int16[3]>" + ARRAY_OFFSET)).getValue().getValue());
+          (Short[]) readValue(nodeId("HR<int16[3]>" + ARRAY_OFFSET)).getValue().getValue());
     }
 
     // Multi-dimensional OPC UA values are flattened on the Modbus wire but must be reconstructed
@@ -311,9 +305,7 @@ public class ArrayModbusToOpcUaIT {
       byte[] registers = hex("00000001 00000002 00000003 00000004");
 
       modbusClient.writeMultipleRegisters(
-          0,
-          new WriteMultipleRegistersRequest(
-              ARRAY_OFFSET, registers.length / 2, registers));
+          0, new WriteMultipleRegistersRequest(ARRAY_OFFSET, registers.length / 2, registers));
 
       Matrix matrix =
           assertInstanceOf(
@@ -350,9 +342,7 @@ public class ArrayModbusToOpcUaIT {
       String address = "HR<int32[2][3]>" + ARRAY_OFFSET;
       Integer[] initial = {10, 20, 30, 40, 50, 60};
       assertGood(
-          writeValue(
-              nodeId(address),
-              new Matrix(initial, new int[] {2, 3}, OpcUaDataType.Int32)));
+          writeValue(nodeId(address), new Matrix(initial, new int[] {2, 3}, OpcUaDataType.Int32)));
 
       assertEquals(60, readValue(nodeId(address + "[1][2]")).getValue().getValue());
     }
@@ -364,9 +354,7 @@ public class ArrayModbusToOpcUaIT {
       String address = "HR<int32[2][3]>" + ARRAY_OFFSET;
       Integer[] initial = {10, 20, 30, 40, 50, 60};
       assertGood(
-          writeValue(
-              nodeId(address),
-              new Matrix(initial, new int[] {2, 3}, OpcUaDataType.Int32)));
+          writeValue(nodeId(address), new Matrix(initial, new int[] {2, 3}, OpcUaDataType.Int32)));
 
       assertGood(writeValue(nodeId(address + "[1][2]"), 99));
 
@@ -375,18 +363,15 @@ public class ArrayModbusToOpcUaIT {
       assertNotNull(fullValue);
       Object elements = fullValue.getElements();
       assertNotNull(elements);
-      assertArrayEquals(
-          new Integer[] {10, 20, 30, 40, 50, 99}, (Integer[]) elements);
-      assertArrayEquals(
-          hex("00000063"), readRegisters("HR", ARRAY_OFFSET + (5 * 2), 2));
+      assertArrayEquals(new Integer[] {10, 20, 30, 40, 50, 99}, (Integer[]) elements);
+      assertArrayEquals(hex("00000063"), readRegisters("HR", ARRAY_OFFSET + (5 * 2), 2));
     }
 
     // OPC UA Part 3 §5.6.2 requires a selected element node to advertise scalar metadata even
     // when its parent Variable is an array or matrix.
     @ParameterizedTest(name = "{0}")
     @MethodSource("indexedMetadataCases")
-    void indexedElementNodesExposeScalarMetadata(IndexedMetadataCase testCase)
-        throws Exception {
+    void indexedElementNodesExposeScalarMetadata(IndexedMetadataCase testCase) throws Exception {
 
       assertScalarMetadata(nodeId(testCase.address()), testCase.dataType());
     }
@@ -403,8 +388,7 @@ public class ArrayModbusToOpcUaIT {
 
       assertEquals(Boolean.TRUE, readValue(bitNode).getValue().getValue());
       assertArrayEquals(
-          new Short[] {0, 32},
-          (Short[]) readValue(nodeId(address)).getValue().getValue());
+          new Short[] {0, 32}, (Short[]) readValue(nodeId(address)).getValue().getValue());
     }
 
     // Three-dimensional Boolean indexes must flatten in row-major order before selecting the
@@ -416,8 +400,7 @@ public class ArrayModbusToOpcUaIT {
       Arrays.fill(initial, false);
       assertGood(
           writeValue(
-              nodeId(address),
-              new Matrix(initial, new int[] {2, 2, 2}, OpcUaDataType.Boolean)));
+              nodeId(address), new Matrix(initial, new int[] {2, 2, 2}, OpcUaDataType.Boolean)));
 
       NodeId indexedNode = nodeId(address + "[1][0][1]");
       assertGood(writeValue(indexedNode, true));
@@ -453,8 +436,8 @@ public class ArrayModbusToOpcUaIT {
     // elements while preserving every element outside the range.
     @ParameterizedTest(name = "{0}")
     @MethodSource("oneDimensionalRangeCases")
-    void oneDimensionalRangeWritesPreserveUnselectedElements(
-        OneDimensionalRangeCase testCase) throws Exception {
+    void oneDimensionalRangeWritesPreserveUnselectedElements(OneDimensionalRangeCase testCase)
+        throws Exception {
 
       NodeId nodeId = nodeId(testCase.address());
       assertGood(writeValue(nodeId, testCase.initial()));
@@ -464,16 +447,15 @@ public class ArrayModbusToOpcUaIT {
       assertArrayEquals(
           (Object[]) testCase.expectedFullValue(),
           (Object[]) readValue(nodeId).getValue().getValue());
-      assertArrayEquals(
-          testCase.expectedModbusValue(), readModbusArray(testCase.address(), 6));
+      assertArrayEquals(testCase.expectedModbusValue(), readModbusArray(testCase.address(), 6));
     }
 
     // OPC UA Part 4 §7.27 defines one NumericRange component per matrix dimension; the returned
     // Matrix must retain the dimensions of the selected block.
     @ParameterizedTest(name = "{0}")
     @MethodSource("twoDimensionalRangeCases")
-    void twoDimensionalRangeReadsPreserveTheSelectedShape(
-        TwoDimensionalRangeCase testCase) throws Exception {
+    void twoDimensionalRangeReadsPreserveTheSelectedShape(TwoDimensionalRangeCase testCase)
+        throws Exception {
 
       NodeId nodeId = nodeId(testCase.address());
       assertGood(
@@ -490,36 +472,31 @@ public class ArrayModbusToOpcUaIT {
       assertNotNull(dimensions);
       assertNotNull(elements);
       assertArrayEquals(new int[] {2, 2}, dimensions);
-      assertArrayEquals(
-          (Object[]) testCase.expectedSliceElements(), (Object[]) elements);
+      assertArrayEquals((Object[]) testCase.expectedSliceElements(), (Object[]) elements);
     }
 
     // A matrix range write must map each update coordinate into the full row-major matrix without
     // overwriting values outside the selected block.
     @ParameterizedTest(name = "{0}")
     @MethodSource("twoDimensionalRangeCases")
-    void twoDimensionalRangeWritesPreserveUnselectedElements(
-        TwoDimensionalRangeCase testCase) throws Exception {
+    void twoDimensionalRangeWritesPreserveUnselectedElements(TwoDimensionalRangeCase testCase)
+        throws Exception {
 
       NodeId nodeId = nodeId(testCase.address());
       assertGood(
           writeValue(
               nodeId,
               new Matrix(testCase.initialElements(), new int[] {3, 3}, testCase.dataType())));
-      Matrix update =
-          new Matrix(testCase.updateElements(), new int[] {2, 2}, testCase.dataType());
+      Matrix update = new Matrix(testCase.updateElements(), new int[] {2, 2}, testCase.dataType());
 
       assertGood(writeValue(nodeId, "0:1,1:2", update));
 
-      Matrix fullValue =
-          assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
+      Matrix fullValue = assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
       assertNotNull(fullValue);
       Object elements = fullValue.getElements();
       assertNotNull(elements);
-      assertArrayEquals(
-          (Object[]) testCase.expectedFullElements(), (Object[]) elements);
-      assertArrayEquals(
-          testCase.expectedModbusValue(), readModbusArray(testCase.address(), 9));
+      assertArrayEquals((Object[]) testCase.expectedFullElements(), (Object[]) elements);
+      assertArrayEquals(testCase.expectedModbusValue(), readModbusArray(testCase.address(), 9));
     }
 
     // A three-dimensional NumericRange proves that range coordinates are not accidentally handled
@@ -532,13 +509,10 @@ public class ArrayModbusToOpcUaIT {
           writeValue(
               nodeId,
               new Matrix(
-                  shorts(0, 1, 2, 3, 4, 5, 6, 7),
-                  new int[] {2, 2, 2},
-                  OpcUaDataType.Int16)));
+                  shorts(0, 1, 2, 3, 4, 5, 6, 7), new int[] {2, 2, 2}, OpcUaDataType.Int16)));
 
       Matrix slice =
-          assertInstanceOf(
-              Matrix.class, readValue(nodeId, "0:1,1,0:1").getValue().getValue());
+          assertInstanceOf(Matrix.class, readValue(nodeId, "0:1,1,0:1").getValue().getValue());
 
       assertNotNull(slice);
       int[] dimensions = slice.getDimensions();
@@ -558,21 +532,16 @@ public class ArrayModbusToOpcUaIT {
           writeValue(
               nodeId,
               new Matrix(
-                  shorts(0, 1, 2, 3, 4, 5, 6, 7),
-                  new int[] {2, 2, 2},
-                  OpcUaDataType.Int16)));
-      Matrix update =
-          new Matrix(shorts(50, 70), new int[] {1, 2, 1}, OpcUaDataType.Int16);
+                  shorts(0, 1, 2, 3, 4, 5, 6, 7), new int[] {2, 2, 2}, OpcUaDataType.Int16)));
+      Matrix update = new Matrix(shorts(50, 70), new int[] {1, 2, 1}, OpcUaDataType.Int16);
 
       assertGood(writeValue(nodeId, "1,0:1,1", update));
 
-      Matrix fullValue =
-          assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
+      Matrix fullValue = assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
       assertNotNull(fullValue);
       Object elements = fullValue.getElements();
       assertNotNull(elements);
-      assertArrayEquals(
-          shorts(0, 1, 2, 3, 4, 50, 6, 70), (Short[]) elements);
+      assertArrayEquals(shorts(0, 1, 2, 3, 4, 50, 6, 70), (Short[]) elements);
     }
 
     // OPC UA Part 4 §7.27 treats a String NumericRange as a substring selection.
@@ -606,9 +575,7 @@ public class ArrayModbusToOpcUaIT {
       NodeId nodeId = nodeId(area + "<string10>" + ARRAY_OFFSET);
       assertGood(writeValue(nodeId, "HELLOWORLD"));
 
-      assertStatus(
-          StatusCodes.Bad_IndexRangeDataMismatch,
-          writeValue(nodeId, "0:4", "NO"));
+      assertStatus(StatusCodes.Bad_IndexRangeDataMismatch, writeValue(nodeId, "0:4", "NO"));
       assertEquals("HELLOWORLD", readValue(nodeId).getValue().getValue());
     }
 
@@ -621,16 +588,14 @@ public class ArrayModbusToOpcUaIT {
       assertGood(writeValue(nodeId, new String[] {"alpha", "beta", "gamma", "delta"}));
 
       assertArrayEquals(
-          new String[] {"bet"},
-          (String[]) readValue(nodeId, "1,0:2").getValue().getValue());
+          new String[] {"bet"}, (String[]) readValue(nodeId, "1,0:2").getValue().getValue());
     }
 
     // A String-array range write must preserve both unselected array elements and unselected
     // characters in the selected element.
     @ParameterizedTest(name = "{0} String array write")
     @MethodSource("registerAreas")
-    void stringArrayRangeWritesPreserveUnselectedValuesAndCharacters(String area)
-        throws Exception {
+    void stringArrayRangeWritesPreserveUnselectedValuesAndCharacters(String area) throws Exception {
 
       NodeId nodeId = nodeId(area + "<string8[4]>" + (ARRAY_OFFSET + 16));
       assertGood(writeValue(nodeId, new String[] {"alpha", "beta", "gamma", "delta"}));
@@ -663,8 +628,7 @@ public class ArrayModbusToOpcUaIT {
     // no data, and clients depend on that distinction for request correction.
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidReadRangeCases")
-    void invalidRangeReadsReturnTheSpecifiedStatus(InvalidRangeCase testCase)
-        throws Exception {
+    void invalidRangeReadsReturnTheSpecifiedStatus(InvalidRangeCase testCase) throws Exception {
 
       NodeId nodeId = nodeId("HR<int16[6]>" + ARRAY_OFFSET);
       assertGood(writeValue(nodeId, shorts(0, 1, 2, 3, 4, 5)));
@@ -677,8 +641,7 @@ public class ArrayModbusToOpcUaIT {
     // device update.
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidWriteRangeCases")
-    void invalidRangeWritesDoNotMutateTheArray(InvalidRangeCase testCase)
-        throws Exception {
+    void invalidRangeWritesDoNotMutateTheArray(InvalidRangeCase testCase) throws Exception {
 
       NodeId nodeId = nodeId("HR<int16[6]>" + ARRAY_OFFSET);
       Short[] initial = shorts(0, 1, 2, 3, 4, 5);
@@ -696,15 +659,10 @@ public class ArrayModbusToOpcUaIT {
     void multidimensionalRangesRequireEveryDimensionWithoutMutation() throws Exception {
       NodeId nodeId = nodeId("HR<int16[2][2]>" + ARRAY_OFFSET);
       Short[] initial = shorts(0, 1, 2, 3);
-      assertGood(
-          writeValue(
-              nodeId,
-              new Matrix(initial, new int[] {2, 2}, OpcUaDataType.Int16)));
+      assertGood(writeValue(nodeId, new Matrix(initial, new int[] {2, 2}, OpcUaDataType.Int16)));
 
       assertStatus(StatusCodes.Bad_IndexRangeNoData, readValue(nodeId, "1").getStatusCode());
-      assertStatus(
-          StatusCodes.Bad_IndexRangeNoData,
-          writeValue(nodeId, "1", new Short[] {8, 9}));
+      assertStatus(StatusCodes.Bad_IndexRangeNoData, writeValue(nodeId, "1", new Short[] {8, 9}));
 
       Matrix actual = assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
       assertArrayEquals(initial, (Short[]) actual.getElements());
@@ -783,8 +741,7 @@ public class ArrayModbusToOpcUaIT {
       assertEquals(3, results.length);
       assertTrue(Arrays.stream(results).allMatch(StatusCode::isGood));
       assertEquals((short) 12, readValue(first).getValue().getValue());
-      assertArrayEquals(
-          shorts(1, 20, 30, 4), (Short[]) readValue(ranged).getValue().getValue());
+      assertArrayEquals(shorts(1, 20, 30, 4), (Short[]) readValue(ranged).getValue().getValue());
       assertEquals(Boolean.FALSE, readValue(last).getValue().getValue());
     }
 
@@ -843,14 +800,12 @@ public class ArrayModbusToOpcUaIT {
     @Test
     void matrixWritesRejectFlatArraysWithoutMutation() throws Exception {
       NodeId nodeId = nodeId("HR<int16[2][2]>" + (ARRAY_OFFSET + 10));
-      Matrix initial =
-          new Matrix(shorts(1, 2, 3, 4), new int[] {2, 2}, OpcUaDataType.Int16);
+      Matrix initial = new Matrix(shorts(1, 2, 3, 4), new int[] {2, 2}, OpcUaDataType.Int16);
       assertGood(writeValue(nodeId, initial));
 
       assertStatus(StatusCodes.Bad_TypeMismatch, writeValue(nodeId, shorts(1, 2, 3, 4)));
 
-      Matrix actual =
-          assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
+      Matrix actual = assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
       assertNotNull(actual);
       Object actualElements = actual.getElements();
       assertNotNull(actualElements);
@@ -862,16 +817,13 @@ public class ArrayModbusToOpcUaIT {
     @Test
     void matrixWritesRejectDifferentDimensionsWithoutMutation() throws Exception {
       NodeId nodeId = nodeId("HR<int16[2][2]>" + (ARRAY_OFFSET + 10));
-      Matrix initial =
-          new Matrix(shorts(1, 2, 3, 4), new int[] {2, 2}, OpcUaDataType.Int16);
+      Matrix initial = new Matrix(shorts(1, 2, 3, 4), new int[] {2, 2}, OpcUaDataType.Int16);
       assertGood(writeValue(nodeId, initial));
 
-      Matrix reshaped =
-          new Matrix(shorts(1, 2, 3, 4), new int[] {1, 4}, OpcUaDataType.Int16);
+      Matrix reshaped = new Matrix(shorts(1, 2, 3, 4), new int[] {1, 4}, OpcUaDataType.Int16);
       assertStatus(StatusCodes.Bad_TypeMismatch, writeValue(nodeId, reshaped));
 
-      Matrix actual =
-          assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
+      Matrix actual = assertInstanceOf(Matrix.class, readValue(nodeId).getValue().getValue());
       assertNotNull(actual);
       Object actualElements = actual.getElements();
       assertNotNull(actualElements);
@@ -942,10 +894,7 @@ public class ArrayModbusToOpcUaIT {
   private DataValue readAttribute(NodeId nodeId, AttributeId attributeId) throws Exception {
     DataValue[] results =
         opcUaClient
-            .read(
-                0.0,
-                TimestampsToReturn.Neither,
-                List.of(readValueId(nodeId, attributeId, "")))
+            .read(0.0, TimestampsToReturn.Neither, List.of(readValueId(nodeId, attributeId, "")))
             .getResults();
     assertNotNull(results);
     assertEquals(1, results.length);
@@ -973,21 +922,17 @@ public class ArrayModbusToOpcUaIT {
 
   private static WriteValue writeRequest(NodeId nodeId, String indexRange, Object value) {
     return new WriteValue(
-        nodeId,
-        AttributeId.Value.uid(),
-        indexRange,
-        DataValue.valueOnly(new Variant(value)));
+        nodeId, AttributeId.Value.uid(), indexRange, DataValue.valueOnly(new Variant(value)));
   }
 
   private static NodeId nodeId(String address) {
     return NodeId.parse("ns=1;s=[modbus-server]" + address);
   }
 
-  private void assertArrayMetadata(
-      NodeId nodeId, OpcUaDataType dataType, int[] dimensions) throws Exception {
+  private void assertArrayMetadata(NodeId nodeId, OpcUaDataType dataType, int[] dimensions)
+      throws Exception {
     assertEquals(
-        dataType.getNodeId(),
-        readAttribute(nodeId, AttributeId.DataType).getValue().getValue());
+        dataType.getNodeId(), readAttribute(nodeId, AttributeId.DataType).getValue().getValue());
     assertEquals(
         dimensions.length, readAttribute(nodeId, AttributeId.ValueRank).getValue().getValue());
 
@@ -995,14 +940,12 @@ public class ArrayModbusToOpcUaIT {
         Arrays.stream(dimensions).mapToObj(Unsigned::uint).toArray(UInteger[]::new);
     assertArrayEquals(
         expectedDimensions,
-        (UInteger[])
-            readAttribute(nodeId, AttributeId.ArrayDimensions).getValue().getValue());
+        (UInteger[]) readAttribute(nodeId, AttributeId.ArrayDimensions).getValue().getValue());
   }
 
   private void assertScalarMetadata(NodeId nodeId, OpcUaDataType dataType) throws Exception {
     assertEquals(
-        dataType.getNodeId(),
-        readAttribute(nodeId, AttributeId.DataType).getValue().getValue());
+        dataType.getNodeId(), readAttribute(nodeId, AttributeId.DataType).getValue().getValue());
     assertEquals(-1, readAttribute(nodeId, AttributeId.ValueRank).getValue().getValue());
     assertNull(readAttribute(nodeId, AttributeId.ArrayDimensions).getValue().getValue());
   }
@@ -1075,9 +1018,7 @@ public class ArrayModbusToOpcUaIT {
           int elementCount = Arrays.stream(shape).reduce(1, Math::multiplyExact);
           Object elements = repeatElements(type.seedElements(), elementCount);
           Object value =
-              shape.length == 1
-                  ? elements
-                  : new Matrix(elements, shape, type.dataType());
+              shape.length == 1 ? elements : new Matrix(elements, shape, type.dataType());
           byte[] registers = repeatBytes(type.encodedSeed(), elementCount / 2);
           String address =
               area + "<" + type.syntax() + formatDimensions(shape) + ">" + ARRAY_OFFSET;
@@ -1085,13 +1026,7 @@ public class ArrayModbusToOpcUaIT {
 
           cases.add(
               new RegisterArrayCase(
-                  caseName,
-                  address,
-                  type.dataType(),
-                  shape,
-                  value,
-                  elements,
-                  registers));
+                  caseName, address, type.dataType(), shape, value, elements, registers));
         }
       }
     }
@@ -1102,10 +1037,7 @@ public class ArrayModbusToOpcUaIT {
   private static List<RegisterType> registerTypes() {
     return List.of(
         new RegisterType(
-            "int16",
-            OpcUaDataType.Int16,
-            shorts(0x1234, (short) 0xFEDC),
-            hex("1234 FEDC")),
+            "int16", OpcUaDataType.Int16, shorts(0x1234, (short) 0xFEDC), hex("1234 FEDC")),
         new RegisterType(
             "uint16",
             OpcUaDataType.UInt16,
@@ -1129,15 +1061,10 @@ public class ArrayModbusToOpcUaIT {
         new RegisterType(
             "uint64",
             OpcUaDataType.UInt64,
-            new ULong[] {
-              ulong(0x0123456789ABCDEFL), ulong(0xFEDCBA9876543210L)
-            },
+            new ULong[] {ulong(0x0123456789ABCDEFL), ulong(0xFEDCBA9876543210L)},
             hex("0123456789ABCDEF FEDCBA9876543210")),
         new RegisterType(
-            "float",
-            OpcUaDataType.Float,
-            new Float[] {1.25f, -2.5f},
-            hex("3FA00000 C0200000")),
+            "float", OpcUaDataType.Float, new Float[] {1.25f, -2.5f}, hex("3FA00000 C0200000")),
         new RegisterType(
             "double",
             OpcUaDataType.Double,
@@ -1167,11 +1094,7 @@ public class ArrayModbusToOpcUaIT {
   }
 
   private static ArrayMetadataCase metadataCase(
-      String name,
-      String area,
-      String syntax,
-      OpcUaDataType dataType,
-      int... dimensions) {
+      String name, String area, String syntax, OpcUaDataType dataType, int... dimensions) {
 
     String address = area + "<" + syntax + formatDimensions(dimensions) + ">" + ARRAY_OFFSET;
     return new ArrayMetadataCase(name, address, dataType, dimensions);
@@ -1184,12 +1107,9 @@ public class ArrayModbusToOpcUaIT {
     for (String area : List.of("C", "DI")) {
       for (int[] shape : dimensions) {
         int elementCount = Arrays.stream(shape).reduce(1, Math::multiplyExact);
-        Boolean[] elements =
-            (Boolean[]) repeatElements(new Boolean[] {true, false}, elementCount);
+        Boolean[] elements = (Boolean[]) repeatElements(new Boolean[] {true, false}, elementCount);
         Object value =
-            shape.length == 1
-                ? elements
-                : new Matrix(elements, shape, OpcUaDataType.Boolean);
+            shape.length == 1 ? elements : new Matrix(elements, shape, OpcUaDataType.Boolean);
         String address = area + "<bool" + formatDimensions(shape) + ">" + ARRAY_OFFSET;
         cases.add(
             new BooleanArrayCase(
@@ -1213,19 +1133,13 @@ public class ArrayModbusToOpcUaIT {
         new RegisterModifierCase(
             "HR @LH", "HR<int32[2]@LH>" + ARRAY_OFFSET, values, hex("56781234 CDEF90AB")),
         new RegisterModifierCase(
-            "HR @LE@LH",
-            "HR<int32[2]@LE@LH>" + ARRAY_OFFSET,
-            values,
-            hex("34127856 AB90EFCD")),
+            "HR @LE@LH", "HR<int32[2]@LE@LH>" + ARRAY_OFFSET, values, hex("34127856 AB90EFCD")),
         new RegisterModifierCase(
             "IR @LE", "IR<int32[2]@LE>" + ARRAY_OFFSET, values, hex("78563412 EFCDAB90")),
         new RegisterModifierCase(
             "IR @LH", "IR<int32[2]@LH>" + ARRAY_OFFSET, values, hex("56781234 CDEF90AB")),
         new RegisterModifierCase(
-            "IR @LE@LH",
-            "IR<int32[2]@LE@LH>" + ARRAY_OFFSET,
-            values,
-            hex("34127856 AB90EFCD")));
+            "IR @LE@LH", "IR<int32[2]@LE@LH>" + ARRAY_OFFSET, values, hex("34127856 AB90EFCD")));
   }
 
   private static Stream<IndexedMetadataCase> indexedMetadataCases() {
@@ -1349,10 +1263,7 @@ public class ArrayModbusToOpcUaIT {
   private static Stream<InvalidRangeCase> invalidWriteRangeCases() {
     return Stream.of(
         new InvalidRangeCase(
-            "malformed write range",
-            "1::2",
-            new Short[] {9, 9},
-            StatusCodes.Bad_IndexRangeInvalid),
+            "malformed write range", "1::2", new Short[] {9, 9}, StatusCodes.Bad_IndexRangeInvalid),
         new InvalidRangeCase(
             "trailing colon in write range",
             "1:",
@@ -1391,8 +1302,7 @@ public class ArrayModbusToOpcUaIT {
 
   private static Object repeatElements(Object seedElements, int elementCount) {
     int seedLength = Array.getLength(seedElements);
-    Object elements =
-        Array.newInstance(seedElements.getClass().getComponentType(), elementCount);
+    Object elements = Array.newInstance(seedElements.getClass().getComponentType(), elementCount);
     for (int i = 0; i < elementCount; i++) {
       Array.set(elements, i, Array.get(seedElements, i % seedLength));
     }

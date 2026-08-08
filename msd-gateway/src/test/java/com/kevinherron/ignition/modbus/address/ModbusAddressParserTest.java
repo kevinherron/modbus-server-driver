@@ -330,8 +330,7 @@ class ModbusAddressParserTest {
   @Test
   void rejectsOversizedArrayExtentWithoutAllocation() {
     assertThrows(
-        Exception.class,
-        () -> ModbusAddressParser.parse("HR<int64[99999][99999][99999]>0"));
+        Exception.class, () -> ModbusAddressParser.parse("HR<int64[99999][99999][99999]>0"));
     assertFalse(ModbusAddressParser.isValidAddress("HR<int64[99999][99999][99999]>0"));
   }
 
@@ -346,22 +345,18 @@ class ModbusAddressParserTest {
 
   @Test
   void rejectsExtentThatWouldOverflowToNegativeInt() {
-    assertThrows(
-        Exception.class, () -> ModbusAddressParser.parse("HR<int64[536870912]>0"));
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<int64[536870912]>0"));
   }
 
   @Test
   void rejectsStringRegisterCountThatPreviouslyOverflowedNegative() {
     assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<string2147483647>0"));
-    assertThrows(
-        Exception.class,
-        () -> ModbusAddressParser.parse("HR<string2147483647[2]>0"));
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<string2147483647[2]>0"));
   }
 
   @Test
   void rejectsOversizedDeclaredExtentOnIndexedScalar() {
-    assertThrows(
-        Exception.class, () -> ModbusAddressParser.parse("HR<int16[65537]>0[0]"));
+    assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<int16[65537]>0[0]"));
   }
 
   @Test
@@ -404,7 +399,6 @@ class ModbusAddressParserTest {
     assertThrows(Exception.class, () -> ModbusAddressParser.parse("HR<int16@BEL>0"));
 
     assertEquals(1, ModbusAddressParser.parse("HR<int16@BE>0").getDataTypeModifiers().size());
-    assertEquals(
-        2, ModbusAddressParser.parse("HR<int16@BE@HL>0").getDataTypeModifiers().size());
+    assertEquals(2, ModbusAddressParser.parse("HR<int16@BE@HL>0").getDataTypeModifiers().size());
   }
 }
