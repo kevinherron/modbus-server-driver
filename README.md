@@ -14,6 +14,26 @@ Modbus clients can read or write as expected using any of the standard Modbus fu
 OPC UA clients can additionally write to Discrete Input and Input Register areas, which are
 read-only from Modbus clients.
 
+## Development
+
+The repository pins its Java and Maven toolchain with `mise`:
+
+```shell
+mise install
+```
+
+Run the full build through the pinned toolchain:
+
+```shell
+mise exec -- mvn clean verify
+```
+
+Apply Google Java Format with Spotless:
+
+```shell
+mise exec -- mvn spotless:apply
+```
+
 ## Connection Security
 
 The per-device `security.allowedIpAddresses` setting, labeled **Allowed IP Addresses** in the
