@@ -151,8 +151,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
           String area = matcher.group(2);
           int address = Integer.parseInt(matcher.group(3));
 
-          return ReferenceResult.of(
-              createRegisterAddressReferences(nodeId, area, address, unitId));
+          return ReferenceResult.of(createRegisterAddressReferences(nodeId, area, address, unitId));
         }
       }
 
@@ -372,8 +371,7 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
           case NodeId -> nodeId;
           case NodeClass -> NodeClass.Object;
           case BrowseName -> device.deviceContext.qualifiedName(syntheticFolderName(nodeId));
-          case DisplayName, Description ->
-              LocalizedText.english(syntheticFolderName(nodeId));
+          case DisplayName, Description -> LocalizedText.english(syntheticFolderName(nodeId));
           default -> null;
         };
 
@@ -470,16 +468,12 @@ public class BrowsableAddressSpace extends ManagedAddressSpaceFragmentWithLifecy
     if (separatePerUnitId) {
       for (int unitId : new TreeSet<>(unitIds)) {
         String unitIdentifier = unitFolderIdentifier(unitId);
-        definitions.add(
-            new FolderDefinition(unitIdentifier, "", unitIdentifier, "Unit " + unitId));
+        definitions.add(new FolderDefinition(unitIdentifier, "", unitIdentifier, "Unit " + unitId));
 
         for (String areaName : AREA_NAMES) {
           definitions.add(
               new FolderDefinition(
-                  areaFolderIdentifier(unitId, areaName),
-                  unitIdentifier,
-                  areaName,
-                  areaName));
+                  areaFolderIdentifier(unitId, areaName), unitIdentifier, areaName, areaName));
         }
       }
     } else {

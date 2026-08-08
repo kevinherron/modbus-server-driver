@@ -332,10 +332,7 @@ class ModbusByteUtilTest {
             UaException.class,
             () ->
                 ModbusByteUtil.getBytesForArrayValue(
-                    new Short[] {1, 2},
-                    new ModbusDataType.Int16(),
-                    NO_MODIFIERS,
-                    new int[] {3}));
+                    new Short[] {1, 2}, new ModbusDataType.Int16(), NO_MODIFIERS, new int[] {3}));
 
     assertEquals(StatusCodes.Bad_TypeMismatch, exception.getStatusCode().getValue());
   }

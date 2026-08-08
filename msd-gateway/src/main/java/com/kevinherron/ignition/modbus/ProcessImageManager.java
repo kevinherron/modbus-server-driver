@@ -40,15 +40,11 @@ final class ProcessImageManager implements AutoCloseable {
    * @param executor the executor used for persistence writes.
    */
   ProcessImageManager(
-      boolean separatePerUnitId,
-      boolean persistData,
-      Path deviceFolderPath,
-      Executor executor) {
+      boolean separatePerUnitId, boolean persistData, Path deviceFolderPath, Executor executor) {
 
     this(
         separatePerUnitId,
-        new ProcessImagePersistence(
-            deviceFolderPath, persistData, separatePerUnitId, executor));
+        new ProcessImagePersistence(deviceFolderPath, persistData, separatePerUnitId, executor));
   }
 
   /**
@@ -57,8 +53,7 @@ final class ProcessImageManager implements AutoCloseable {
    * @param separatePerUnitId whether each unit ID has an independent process image.
    * @param persistence the persistence lifecycle owned by this manager.
    */
-  ProcessImageManager(
-      boolean separatePerUnitId, ProcessImagePersistence persistence) {
+  ProcessImageManager(boolean separatePerUnitId, ProcessImagePersistence persistence) {
 
     this.separatePerUnitId = separatePerUnitId;
     this.persistence = persistence;

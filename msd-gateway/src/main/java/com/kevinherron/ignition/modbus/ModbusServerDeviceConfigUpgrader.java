@@ -7,8 +7,7 @@ import com.inductiveautomation.ignition.gateway.config.JsonSettingsUpgrader;
 /** Upgrades persisted Modbus server device settings to the current JSON format. */
 final class ModbusServerDeviceConfigUpgrader implements JsonSettingsUpgrader {
 
-  static final ModbusServerDeviceConfigUpgrader INSTANCE =
-      new ModbusServerDeviceConfigUpgrader();
+  static final ModbusServerDeviceConfigUpgrader INSTANCE = new ModbusServerDeviceConfigUpgrader();
 
   private static final int LEGACY_CONFIG_VERSION = 1;
 
@@ -17,9 +16,9 @@ final class ModbusServerDeviceConfigUpgrader implements JsonSettingsUpgrader {
   /**
    * Upgrades a settings document without mutating the caller's JSON tree.
    *
-   * <p>Version 1 settings have no {@code configVersion} property and store persistence under
-   * {@code persistence.persistData}. Version 2 co-locates persistence and per-unit routing under
-   * {@code processImage}.
+   * <p>Version 1 settings have no {@code configVersion} property and store persistence under {@code
+   * persistence.persistData}. Version 2 co-locates persistence and per-unit routing under {@code
+   * processImage}.
    *
    * @param settings the persisted extension-point settings.
    * @return settings in the current format.
@@ -39,8 +38,7 @@ final class ModbusServerDeviceConfigUpgrader implements JsonSettingsUpgrader {
           "unsupported Modbus server device configVersion: " + version);
     }
     if (version < LEGACY_CONFIG_VERSION) {
-      throw new IllegalArgumentException(
-          "invalid Modbus server device configVersion: " + version);
+      throw new IllegalArgumentException("invalid Modbus server device configVersion: " + version);
     }
 
     if (version == LEGACY_CONFIG_VERSION) {
